@@ -1,37 +1,76 @@
 import { z } from 'zod'
 import { prisma, num, audit, isDateKey, shiftDate, businessDate } from './db.js'
-import { computeDay, PRODUCTS } from '../../shared/calc.js'
+import { computeDay, PRODUCTS } from './utils/calculator.js'
+
+/* ------------------------------ validation ------------------------------- */
+
+const moneyInput = z.number().min(0).max(100000000)
 
 const daySchema = z.object({
   rates: z.object({ MS: z.number().min(0).max(1000), HSD: z.number().min(0).max(1000) }),
   nozzles: z.array(
     z.object({
-      nozzleId: z.string(),
-      opening: z.number().min(0),
-      closing: z.number().min(0),
+      nozzleId: z.string().min(1).max(64),
+      opening: z.number().min(0).max(99999999),
+      closing: z.number().min(0).max(99999999),
       rollover: z.boolean().optional().default(false),
-      replacedLitres: z.number().min(0).nullable().optional(),
+      replacedLitres: z.number().min(0).max(99999999).nullable().optional(),
     }),
   ),
-  rf: z.object({ MS: z.number().min(0), HSD: z.number().min(0) }),
+  rf: z.object({ MS: z.number().min(0).max(99999999), HSD: z.number().min(0).max(99999999) }),
+  rfNote: z
+    .object({
+      MS: z.string().trim().max(200).optional().default(''),
+      HSD: z.string().trim().max(200).optional().default(''),
+    })
+    .optional(),
   lube: z.array(
     z.object({
-      itemId: z.string().nullable().optional(),
+      itemId: z.string().min(1).max(64).nullable().optional(),
       itemName: z.string().trim().min(1).max(120),
-      quantity: z.number().min(0),
-      price: z.number().min(0),
+      quantity: z.number().min(0).max(1000000),
+      price: moneyInput,
     }),
   ),
   online: z.array(
     z.object({
       label: z.string().trim().max(80).optional().default('Online'),
-      amount: z.number().min(0),
+      amount: moneyInput,
     }),
   ),
-  pos: z.number().min(0),
-  bankDeposit: z.number().min(0),
-  countedCash: z.number().min(0),
+  pos: moneyInput,
+  bankDeposit: moneyInput,
+  countedCash: moneyInput,
+  // Optional atomic collections. When supplied, the day route replaces that
+  // date's rows inside the same transaction; when omitted, the standalone
+  // Expenses/Credit screens remain the writers.
+  expenses: z
+    .array(
+      z.object({
+        categoryId: z.string().min(1).max(64),
+        type: z.enum(['running', 'one-off']),
+        details: z.string().trim().max(160).optional().default(''),
+        amount: moneyInput,
+      }),
+    )
+    .optional(),
+  credits: z
+    .array(
+      z.object({
+        partyId: z.string().min(1).max(64),
+        type: z.enum(['credit', 'payment']),
+        amount: z.number().positive().max(100000000),
+        mode: z.enum(['cash', 'online']).default('cash'),
+        note: z.string().trim().max(160).optional().default(''),
+      }),
+    )
+    .optional(),
 })
+
+/* -------------------------------- helpers -------------------------------- */
+
+const httpError = (status, message, extra = {}) =>
+  Object.assign(new Error(message), { status, extra })
 
 export function settingsShape(setting) {
   return {
@@ -45,36 +84,47 @@ export function settingsShape(setting) {
   }
 }
 
-async function loadSettings() {
-  const setting = await prisma.setting.findUnique({ where: { id: 1 } })
+async function loadSettings(client = prisma) {
+  const setting = await client.setting.findUnique({ where: { id: 1 } })
   return { row: setting, shape: settingsShape(setting) }
 }
 
-/** Create the day on first visit, carrying meters/stock/cash from the last closed day. */
-export async function ensureDay(date) {
-  let report = await prisma.dailyReport.findUnique({ where: { date } })
-  if (report) return report
-
-  const previous = await prisma.dailyReport.findFirst({
+/**
+ * The previous closed day is the only source of carried cash and stock.
+ * Recomputing it from its stored raw rows means a tampered `totals` snapshot
+ * cannot influence today's opening figures.
+ */
+async function previousContext(date, client = prisma) {
+  const previous = await client.dailyReport.findFirst({
     where: { date: { lt: date }, status: 'closed' },
     orderBy: { date: 'desc' },
   })
-  const previousTotals = previous?.totals ? JSON.parse(previous.totals) : null
+  if (!previous) return { previous: null, computed: null }
 
-  const nozzles = await prisma.nozzle.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } })
-  const tanks = await prisma.tank.findMany({ where: { active: true }, orderBy: { name: 'asc' } })
+  const { computed } = await computedFor(previous, client)
+  return { previous, computed }
+}
+
+/* --------------------------------- reads --------------------------------- */
+
+/** Create the day on first visit, carrying meters/stock/cash from the DB. */
+export async function ensureDay(date, client = prisma) {
+  let report = await client.dailyReport.findUnique({ where: { date } })
+  if (report) return report
+
+  const { previous, computed: previousComputed } = await previousContext(date, client)
+
+  const nozzles = await client.nozzle.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } })
+  const tanks = await client.tank.findMany({ where: { active: true }, orderBy: { name: 'asc' } })
   const previousReadings = previous
-    ? await prisma.nozzleReading.findMany({ where: { dailyReportId: previous.id } })
-    : []
-  const previousTankDays = previous
-    ? await prisma.tankDay.findMany({ where: { dailyReportId: previous.id } })
+    ? await client.nozzleReading.findMany({ where: { dailyReportId: previous.id } })
     : []
 
-  report = await prisma.dailyReport.create({
+  report = await client.dailyReport.create({
     data: {
       date,
       status: 'open',
-      previousBalance: previousTotals?.cash?.total ?? 0,
+      previousBalance: previousComputed?.cash?.total ?? 0,
       readings: {
         create: nozzles.map((nozzle) => ({
           nozzleId: nozzle.id,
@@ -86,42 +136,39 @@ export async function ensureDay(date) {
         create: PRODUCTS.map((product) => ({ product, rfLitres: 0 })),
       },
       tanks: {
-        create: tanks.map((tank) => {
-          const productTotals = previousTotals?.products?.[tank.product]
-          return {
-            tankId: tank.id,
-            opening: productTotals?.closingStock ?? 0,
-            receipts: 0,
-            dip: 0,
-          }
-        }),
+        create: tanks.map((tank) => ({
+          tankId: tank.id,
+          opening: previousComputed?.products?.[tank.product]?.closingStock ?? 0,
+          receipts: 0,
+          dip: 0,
+        })),
       },
     },
   })
 
   // Carry yesterday's rate so today starts pre-filled (PRD §4).
   const lastRates = previous
-    ? await prisma.rate.findMany({ where: { date: previous.date } })
+    ? await client.rate.findMany({ where: { date: previous.date } })
     : []
   for (const rate of lastRates) {
-    await prisma.rate.create({ data: { product: rate.product, date, rate: rate.rate } })
+    await client.rate.create({ data: { product: rate.product, date, rate: rate.rate } })
   }
 
   await audit('day.open', 'day', date, { date })
   return report
 }
 
-/** Build the shared-calc input from every table that feeds the day. */
-export async function buildInput(report) {
+/** Build the calculator input from every table that feeds the day. */
+export async function buildInput(report, client = prisma) {
   const [readings, products, tankDays, lube, online, expenses, credits, rates] = await Promise.all([
-    prisma.nozzleReading.findMany({ where: { dailyReportId: report.id }, include: { nozzle: true } }),
-    prisma.productDay.findMany({ where: { dailyReportId: report.id } }),
-    prisma.tankDay.findMany({ where: { dailyReportId: report.id }, include: { tank: true } }),
-    prisma.lubeSale.findMany({ where: { dailyReportId: report.id } }),
-    prisma.onlineReceipt.findMany({ where: { dailyReportId: report.id } }),
-    prisma.expense.findMany({ where: { date: report.date } }),
-    prisma.creditTransaction.findMany({ where: { date: report.date } }),
-    prisma.rate.findMany({ where: { date: report.date } }),
+    client.nozzleReading.findMany({ where: { dailyReportId: report.id }, include: { nozzle: true } }),
+    client.productDay.findMany({ where: { dailyReportId: report.id } }),
+    client.tankDay.findMany({ where: { dailyReportId: report.id }, include: { tank: true } }),
+    client.lubeSale.findMany({ where: { dailyReportId: report.id } }),
+    client.onlineReceipt.findMany({ where: { dailyReportId: report.id } }),
+    client.expense.findMany({ where: { date: report.date } }),
+    client.creditTransaction.findMany({ where: { date: report.date } }),
+    client.rate.findMany({ where: { date: report.date } }),
   ])
 
   const rateOf = (product) => num(rates.find((row) => row.product === product)?.rate)
@@ -188,9 +235,9 @@ export async function buildInput(report) {
   return { input, readings, products, tankDays, lube, online, expenses, credits }
 }
 
-export async function computedFor(report) {
-  const { row, shape } = await loadSettings()
-  const { input } = await buildInput(report)
+export async function computedFor(report, client = prisma) {
+  const { row, shape } = await loadSettings(client)
+  const { input } = await buildInput(report, client)
   return { computed: computeDay(input, shape), settings: shape, settingRow: row, input }
 }
 
@@ -207,6 +254,7 @@ const dayPayload = async (report) => {
   ])
 
   const readings = await prisma.nozzleReading.findMany({ where: { dailyReportId: report.id } })
+  const productDays = await prisma.productDay.findMany({ where: { dailyReportId: report.id } })
 
   return {
     date: report.date,
@@ -215,6 +263,7 @@ const dayPayload = async (report) => {
     inputs: {
       rates: input.rates,
       rf: input.rf,
+      rfNote: Object.fromEntries(productDays.map((row) => [row.product, row.rfNote ?? ''])),
       nozzles: nozzles.map((nozzle) => {
         const reading = readings.find((row) => row.nozzleId === nozzle.id)
         return {
@@ -224,7 +273,10 @@ const dayPayload = async (report) => {
           opening: num(reading?.opening),
           closing: num(reading?.closing),
           rollover: Boolean(reading?.rollover),
-          replacedLitres: reading?.replacedLitres === null || reading?.replacedLitres === undefined ? null : num(reading.replacedLitres),
+          replacedLitres:
+            reading?.replacedLitres === null || reading?.replacedLitres === undefined
+              ? null
+              : num(reading.replacedLitres),
         }
       }),
       tanks: input.tanks,
@@ -267,6 +319,8 @@ export async function getDay(req, res) {
   res.json(await dayPayload(report))
 }
 
+/* --------------------------------- writes -------------------------------- */
+
 export async function saveDay(req, res) {
   const date = req.params.date
   if (!isDateKey(date)) return res.status(400).json({ error: 'Date must be YYYY-MM-DD.' })
@@ -283,81 +337,155 @@ export async function saveDay(req, res) {
 
   const body = parsed.data
 
-  await prisma.$transaction(async (tx) => {
-    await tx.dailyReport.update({
-      where: { id: report.id },
-      data: {
-        pos: body.pos,
-        bankDeposit: body.bankDeposit,
-        countedCash: body.countedCash,
-      },
+  try {
+    await prisma.$transaction(async (tx) => {
+      const current = await tx.dailyReport.findUnique({ where: { id: report.id } })
+      if (!current || current.status === 'closed') {
+        throw httpError(409, 'This day is closed. Reopen it before editing.')
+      }
+
+      // Carried cash always comes from the last closed day in PostgreSQL.
+      const { computed: previousComputed } = await previousContext(date, tx)
+      const previousBalance = previousComputed?.cash?.total ?? 0
+
+      await tx.dailyReport.update({
+        where: { id: report.id },
+        data: {
+          pos: body.pos,
+          bankDeposit: body.bankDeposit,
+          countedCash: body.countedCash,
+          previousBalance,
+        },
+      })
+
+      const requestedNozzles = [...new Set(body.nozzles.map((row) => row.nozzleId))]
+      const knownNozzles = await tx.nozzle.findMany({
+        where: { id: { in: requestedNozzles }, active: true },
+        select: { id: true },
+      })
+      if (knownNozzles.length !== requestedNozzles.length) {
+        throw httpError(400, 'One or more nozzles are unknown or inactive.')
+      }
+
+      for (const product of PRODUCTS) {
+        await tx.rate.upsert({
+          where: { product_date: { product, date } },
+          update: { rate: body.rates[product] ?? 0 },
+          create: { product, date, rate: body.rates[product] ?? 0 },
+        })
+        await tx.productDay.upsert({
+          where: { dailyReportId_product: { dailyReportId: report.id, product } },
+          update: {
+            rfLitres: body.rf[product] ?? 0,
+            rfNote: body.rfNote?.[product] || null,
+          },
+          create: {
+            dailyReportId: report.id,
+            product,
+            rfLitres: body.rf[product] ?? 0,
+            rfNote: body.rfNote?.[product] || null,
+          },
+        })
+      }
+
+      for (const nozzle of body.nozzles) {
+        await tx.nozzleReading.upsert({
+          where: { dailyReportId_nozzleId: { dailyReportId: report.id, nozzleId: nozzle.nozzleId } },
+          update: {
+            opening: nozzle.opening,
+            closing: nozzle.closing,
+            rollover: Boolean(nozzle.rollover),
+            replacedLitres: nozzle.replacedLitres ?? null,
+          },
+          create: {
+            dailyReportId: report.id,
+            nozzleId: nozzle.nozzleId,
+            opening: nozzle.opening,
+            closing: nozzle.closing,
+            rollover: Boolean(nozzle.rollover),
+            replacedLitres: nozzle.replacedLitres ?? null,
+          },
+        })
+      }
+
+      await tx.lubeSale.deleteMany({ where: { dailyReportId: report.id } })
+      if (body.lube.length) {
+        await tx.lubeSale.createMany({
+          data: body.lube.map((line) => ({
+            dailyReportId: report.id,
+            itemId: line.itemId || null,
+            itemName: line.itemName,
+            quantity: line.quantity,
+            price: line.price,
+          })),
+        })
+      }
+
+      await tx.onlineReceipt.deleteMany({ where: { dailyReportId: report.id } })
+      if (body.online.length) {
+        await tx.onlineReceipt.createMany({
+          data: body.online.map((line) => ({
+            dailyReportId: report.id,
+            label: line.label || 'Online',
+            amount: line.amount,
+          })),
+        })
+      }
+
+      if (body.expenses !== undefined) {
+        await tx.expense.deleteMany({ where: { date } })
+        if (body.expenses.length) {
+          await tx.expense.createMany({
+            data: body.expenses.map((line) => ({
+              date,
+              categoryId: line.categoryId,
+              dailyReportId: report.id,
+              type: line.type,
+              details: line.details || null,
+              amount: line.amount,
+            })),
+          })
+        }
+      }
+
+      if (body.credits !== undefined) {
+        await tx.creditTransaction.deleteMany({ where: { date } })
+        if (body.credits.length) {
+          await tx.creditTransaction.createMany({
+            data: body.credits.map((line) => ({
+              date,
+              partyId: line.partyId,
+              type: line.type,
+              amount: line.amount,
+              mode: line.mode,
+              note: line.note || null,
+            })),
+          })
+        }
+      }
+
+      // Recalculate from what is now in PostgreSQL, inside the transaction.
+      const fresh = await tx.dailyReport.findUnique({ where: { id: report.id } })
+      const { computed } = await computedFor(fresh, tx)
+      if (computed.errors.length) {
+        throw httpError(422, computed.errors[0], { issues: computed.errors })
+      }
+
+      await tx.dailyReport.update({
+        where: { id: report.id },
+        data: { totals: computed },
+      })
     })
-
-    for (const product of PRODUCTS) {
-      await tx.rate.upsert({
-        where: { product_date: { product, date } },
-        update: { rate: body.rates[product] ?? 0 },
-        create: { product, date, rate: body.rates[product] ?? 0 },
-      })
-      await tx.productDay.upsert({
-        where: { dailyReportId_product: { dailyReportId: report.id, product } },
-        update: { rfLitres: body.rf[product] ?? 0 },
-        create: { dailyReportId: report.id, product, rfLitres: body.rf[product] ?? 0 },
-      })
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message, ...(error.extra ?? {}) })
     }
-
-    for (const nozzle of body.nozzles) {
-      await tx.nozzleReading.upsert({
-        where: { dailyReportId_nozzleId: { dailyReportId: report.id, nozzleId: nozzle.nozzleId } },
-        update: {
-          opening: nozzle.opening,
-          closing: nozzle.closing,
-          rollover: Boolean(nozzle.rollover),
-          replacedLitres: nozzle.replacedLitres ?? null,
-        },
-        create: {
-          dailyReportId: report.id,
-          nozzleId: nozzle.nozzleId,
-          opening: nozzle.opening,
-          closing: nozzle.closing,
-          rollover: Boolean(nozzle.rollover),
-          replacedLitres: nozzle.replacedLitres ?? null,
-        },
-      })
-    }
-
-    await tx.lubeSale.deleteMany({ where: { dailyReportId: report.id } })
-    if (body.lube.length) {
-      await tx.lubeSale.createMany({
-        data: body.lube.map((line) => ({
-          dailyReportId: report.id,
-          itemId: line.itemId || null,
-          itemName: line.itemName,
-          quantity: line.quantity,
-          price: line.price,
-        })),
-      })
-    }
-
-    await tx.onlineReceipt.deleteMany({ where: { dailyReportId: report.id } })
-    if (body.online.length) {
-      await tx.onlineReceipt.createMany({
-        data: body.online.map((line) => ({
-          dailyReportId: report.id,
-          label: line.label || 'Online',
-          amount: line.amount,
-        })),
-      })
-    }
-  })
+    throw error
+  }
 
   const fresh = await prisma.dailyReport.findUnique({ where: { id: report.id } })
-  const { computed } = await computedFor(fresh)
-  const total = computed.cash.total
-  await prisma.dailyReport.update({ where: { id: fresh.id }, data: { totals: JSON.stringify(computed) } })
-  await audit('day.save', 'day', date, { totalCash: total })
-
-  res.json(await dayPayload(await prisma.dailyReport.findUnique({ where: { id: report.id } })))
+  await audit('day.save', 'day', date, { totalCash: num(fresh.totals?.cash?.total) })
+  res.json(await dayPayload(fresh))
 }
 
 export async function closeDay(req, res) {
@@ -375,14 +503,21 @@ export async function closeDay(req, res) {
     return res.status(409).json({ error: `Close ${previous.date} before closing ${date}.` })
   }
 
-  const { computed } = await computedFor(report)
+  // Refresh the carried balance from the last closed day, then recompute.
+  const { computed: previousComputed } = await previousContext(date)
+  await prisma.dailyReport.update({
+    where: { id: report.id },
+    data: { previousBalance: previousComputed?.cash?.total ?? 0 },
+  })
+
+  const { computed } = await computedFor(await prisma.dailyReport.findUnique({ where: { id: report.id } }))
   if (computed.errors.length) {
     return res.status(422).json({ error: computed.errors[0], issues: computed.errors })
   }
 
   const updated = await prisma.dailyReport.update({
     where: { id: report.id },
-    data: { status: 'closed', closedAt: new Date(), totals: JSON.stringify(computed) },
+    data: { status: 'closed', closedAt: new Date(), totals: computed },
   })
   await audit('day.close', 'day', date, { totalCash: computed.cash.total })
 
@@ -393,8 +528,10 @@ export async function closeDay(req, res) {
   })
   if (next) {
     await prisma.dailyReport.update({ where: { id: next.id }, data: { previousBalance: computed.cash.total } })
-    const { computed: nextComputed } = await computedFor(await prisma.dailyReport.findUnique({ where: { id: next.id } }))
-    await prisma.dailyReport.update({ where: { id: next.id }, data: { totals: JSON.stringify(nextComputed) } })
+    const { computed: nextComputed } = await computedFor(
+      await prisma.dailyReport.findUnique({ where: { id: next.id } }),
+    )
+    await prisma.dailyReport.update({ where: { id: next.id }, data: { totals: nextComputed } })
   }
 
   res.json(await dayPayload(updated))

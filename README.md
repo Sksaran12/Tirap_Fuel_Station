@@ -7,8 +7,10 @@ dashboard, monthly report, CSV and print, plus a responsive layout from
 1440px desktop down to a 390px phone.
 
 The paper sheet of **24/10/2026 (TC-01)** is the acceptance case. It is
-reproduced exactly — in the live browser preview and in the API — by
-`shared/calc.js`, which both sides import.
+reproduced exactly — in the live browser preview and in the API — by the
+server-side engine in `backend/src/utils/calculator.js`. The browser imports a
+thin re-export for the preview only; every stored figure is recalculated by the
+API and saved inside a database transaction.
 
 ## Stack
 
@@ -16,13 +18,13 @@ reproduced exactly — in the live browser preview and in the API — by
 | --- | --- |
 | Frontend | React 18, Vite 8, Tailwind CSS 3, React Router 7 |
 | Backend | Express 5, Prisma 6, Zod 4, `bcryptjs` |
-| Database | PostgreSQL in production (`NUMERIC(12,2)` for money); SQLite for local dev |
-| Calculation | `shared/calc.js` — single source of truth for F1–F17 |
-| Tests | `node:test` against the shared engine |
+| Database | PostgreSQL 14+ (`NUMERIC(12,2)` money, `NUMERIC(12,3)` volume, JSONB totals) |
+| Calculation | `backend/src/utils/calculator.js` — server-authoritative F1–F17 |
+| Tests | `node:test` against the calculator + a live PostgreSQL API smoke test |
 
 ## Quick start
 
-Requires **Node 20+**.
+Requires **Node 20+** and **PostgreSQL 14+** (17 or 18 recommended).
 
 ```bash
 # 1. Frontend dependencies (project root)
@@ -35,10 +37,21 @@ npm install
 # 3. Local environment (Windows: use `copy`; macOS/Linux: `cp`)
 copy .env.example .env
 
-# 4. Create the dev database and seed the owner + masters
-npx prisma db push
-node src/seed.js
+# 4. Create the role + database, write DATABASE_URL, push the schema, seed
+npm run db:setup
 ```
+
+`db:setup` asks for the PostgreSQL superuser password (usually the one chosen
+when you installed PostgreSQL) and does the rest:
+
+- creates the login role `tirap` with a generated strong password;
+- creates the database `tirap` owned by that role;
+- writes `DATABASE_URL="postgresql://tirap:…@localhost:5432/tirap?schema=public"`
+  into `backend/.env`;
+- runs `prisma generate`, `prisma db push` and `node src/seed.js`.
+
+The superuser password is never written to disk. If you prefer to create the
+database yourself, see [Database setup](#database-setup-postgresql) below.
 
 Run the two dev servers in **two terminals**:
 
@@ -66,6 +79,7 @@ serves `dist/` when it exists.
 | `npm run build` | root | Production build into `dist/` |
 | `npm run dev` | `backend/` | API with `node --watch` |
 | `npm start` | `backend/` | API without watch |
+| `npm run db:setup` | `backend/` | Create the PostgreSQL role/database, write `.env`, push and seed |
 | `npm run db:push` | `backend/` | Apply the Prisma schema |
 | `npm run db:seed` | `backend/` | Create the owner and master data (idempotent) |
 | `npm run db:studio` | `backend/` | Open Prisma Studio to inspect the database |
@@ -77,7 +91,7 @@ serves `dist/` when it exists.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `DATABASE_URL` | `file:./dev.db` | SQLite path for local dev |
+| `DATABASE_URL` | `postgresql://tirap:…@localhost:5432/tirap?schema=public` | PostgreSQL connection string |
 | `PORT` | `4000` | API port |
 | `NODE_ENV` | `development` | Enables dev cookie rules |
 | `APP_ORIGIN` | `http://localhost:5173` | Allowed browser origin |
@@ -88,40 +102,136 @@ serves `dist/` when it exists.
 Change the password from **Settings** after first login. There is no public
 sign-up: the PRD specifies a single owner account.
 
-### Database: how it is created and accessed
+### Database setup (PostgreSQL)
 
-- The Prisma schema lives at `backend/prisma/schema.prisma` (21 tables). Money
-  is `Decimal(12,2)`; the API converts decimal strings to numbers at the edge.
-- `npx prisma db push` **creates** `backend/prisma/dev.db` and generates the
-  client. `node src/seed.js` inserts the owner, nozzles, tanks, lubricant items
-  and expense categories.
-- Every request uses the singleton `PrismaClient` in `backend/src/db.js`; the
-  API never talks to the database file directly.
-- Inspect rows with `npm run db:studio` (Prisma Studio) or verify connectivity
-  with `curl http://localhost:4000/api/health`. A healthy response is `200`
-  with `db.status: "connected"` and a latency figure; a stopped or unreachable
-  database returns `503`.
-- **This machine has no PostgreSQL service, `psql` or Docker**, so the working
-  dev database is SQLite. Switching is a one-line provider change; see below.
+The datasource is PostgreSQL. `backend/prisma/schema.prisma` declares 19 tables
+with strict `Decimal` columns — `Decimal(12,2)` for money and rates,
+`Decimal(12,3)` for litres — plus JSONB for the calculated day snapshot. There
+are no `Float` columns and no `station_id` (V1 is a single-pump deployment).
 
-### Switching to PostgreSQL
+#### Option A — the setup script (recommended)
 
-1. Set the datasource in `backend/prisma/schema.prisma`:
+```powershell
+cd backend
+npm run db:setup
+```
 
-   ```prisma
-   datasource db {
-     provider = "postgresql"
-     url      = env("DATABASE_URL")
-   }
-   ```
+The script:
 
-2. Point `DATABASE_URL` at the database, e.g.
-   `postgresql://user:password@localhost:5432/tirap`.
-3. Run `npx prisma db push` (or `prisma migrate dev`) and `node src/seed.js`.
+1. finds `psql.exe` under `C:\Program Files\PostgreSQL\<version>\bin`;
+2. prompts for the **PostgreSQL superuser** password (`postgres`) without
+   echoing it — or uses `PGPASSWORD` if already set;
+3. creates or updates the login role `tirap` with a generated 28-character
+   password;
+4. creates the database `tirap` owned by `tirap` (existing data is kept);
+5. writes `DATABASE_URL` into `backend/.env`;
+6. runs `prisma generate`, `prisma db push` and the seed.
 
-Money columns are declared `Decimal @db.Decimal(12, 2)` for PostgreSQL. SQLite
-stores them as decimal strings; the API converts every value with `Number()`
-at the boundary, so the UI and CSV output are identical on both engines.
+Optional flags: `-Database`, `-AppUser`, `-DbHost`, `-Port`, `-SkipPush`,
+`-SkipSeed`. Example against a non-default port:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-postgres.ps1 -Port 5433
+```
+
+#### Option B — do it by hand
+
+Open **SQL Shell (psql)** from the Start menu (or run
+`"C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres`) and run:
+
+```sql
+CREATE ROLE tirap LOGIN PASSWORD 'choose-a-strong-password';
+CREATE DATABASE tirap OWNER tirap ENCODING 'UTF8';
+\c tirap
+ALTER SCHEMA public OWNER TO tirap;
+GRANT ALL ON SCHEMA public TO tirap;
+```
+
+Then put this line in `backend/.env`:
+
+```dotenv
+DATABASE_URL="postgresql://tirap:choose-a-strong-password@localhost:5432/tirap?schema=public"
+```
+
+and run:
+
+```bash
+npx prisma generate
+npx prisma db push
+node src/seed.js
+```
+
+#### What each part of `DATABASE_URL` means
+
+```text
+postgresql://tirap:PASSWORD@localhost:5432/tirap?schema=public
+│           │     │       │         │    │      │
+│           │     │       │         │    │      └─ schema searched by Prisma
+│           │     │       │         │    └─ database name
+│           │     │       │         └─ PostgreSQL port
+│           │     │       └─ host (the "server")
+│           │     └─ role password
+│           └─ role / username
+└─ protocol (use postgresql://, not file:)
+```
+
+- `localhost` (or `127.0.0.1`) is the server; `5432` is the port the PostgreSQL
+  service listens on. Both come from the installer defaults.
+- `tirap` appears twice: once as the **role** and once as the **database**.
+- If the password contains `@ : / ? # %` or a space, URL-encode it
+  (`@` → `%40`, `#` → `%23`, `%` → `%25`). The generated password avoids these
+  characters entirely.
+- Keep the URL in `backend/.env`; that file is gitignored.
+- The Prisma CLI reads `.env` automatically. The API reads it through
+  `import 'dotenv/config'` in `src/db.js`.
+
+#### Verifying the connection
+
+```bash
+curl http://localhost:4000/api/health
+```
+
+A healthy response is `200` with `db.engine: "PostgreSQL"`,
+`db.status: "connected"` and a latency figure. A stopped server, wrong password
+or missing database returns `503`. `npm run db:studio` opens Prisma Studio.
+
+All requests share the singleton `PrismaClient` in `backend/src/db.js`; row
+values arrive as `Decimal` objects and are converted with `num()` only at the
+response boundary. Calculated totals are stored as JSONB in
+`daily_reports.totals`.
+
+## Server-authoritative calculation
+
+The browser is a view, not a source of truth. `backend/src/utils/calculator.js`
+owns formulas F1–F17; `shared/calc.js` only re-exports it so the live preview
+matches the stored result.
+
+`PUT /api/day/:date` (`backend/src/day.js`) runs this pipeline:
+
+1. **Zod validates** the raw payload — rates, readings, R/F, lubricants, online
+   receipts, POS, bank deposit, counted cash, and optional `expenses` /
+   `credits` arrays.
+2. **Lock check** — if the day is already `closed`, the API returns
+   **`409 Conflict`** and writes nothing.
+3. **Previous context from PostgreSQL** — the last closed day is reloaded and
+   recomputed; its `cash.total` and per-product `closingStock` become today's
+   opening cash and stock. Client-supplied opening balances are ignored.
+4. **Calculation** — `computeDay()` returns meter sale (F2), A/C sale (F3),
+   fuel amount (F4), R/F value (F5), lubricants (F6), total fuel (F7), closing
+   stock (F8), stock values (F9), variance (F10), net cash (F11), total cash
+   (F12), difference (F13), R/F + cash (F16) and daily profit (F17). Money is
+   `Math.floor`-ed to whole rupees before totals when
+   `settings.rounding = "paper"`.
+5. **Atomic save** — `prisma.$transaction` writes the report header, rates,
+   readings, product days, lubricants, online receipts and any linked expenses
+   and credit rows together, recomputes from the rows just written, then stores
+   the snapshot in `daily_reports.totals` (JSONB). Any error rolls the whole
+   day back; impossible inputs (closing meter below opening without a rollover,
+   R/F above meter sale) return **`422`**.
+
+Closing a day recomputes and freezes its totals, and refuses while an earlier
+day is still open. Reopening is refused while a later day is closed, protecting
+the F14 cash chain.
 
 ## Features (milestones 2–4)
 
@@ -171,8 +281,11 @@ at the boundary, so the UI and CSV output are identical on both engines.
 ## TC-01 walkthrough (24 Oct 2026)
 
 1. Seed a fresh database, then open **Daily Entry**.
-2. Set the business date to **24/10/2026**. Enter yesterday's closing cash
-   **63,374** on 23/10 if starting empty, or use *carried opening cash*.
+2. Set the business date to **24/10/2026**. To reproduce the sheet exactly,
+   close 23/10/2026 with a carried balance of **₹63,374** (or insert a closed
+   `daily_reports` row for 23/10 with `previous_balance = 63374`). The server
+   always takes opening cash and stock from the last closed day — it never
+   reads them from the browser.
 3. Enter the sheet:
 
 | Field | MS | HSD |
@@ -231,10 +344,15 @@ npm test
 │  ├─ components/          ui primitives, DateNav, BPCL lockup
 │  ├─ context/             AuthContext, DayContext
 │  └─ lib/                 api client, formatters, useResource
-├─ shared/calc.js          F1–F17 engine (browser + API)
+├─ shared/calc.js          Browser-side re-export of the server engine (preview)
 ├─ backend/
-│  ├─ prisma/schema.prisma 21 tables, money as Decimal(12,2)
-│  ├─ src/                 auth, day, modules, seed, error handling
+│  ├─ prisma/schema.prisma 19 tables; Decimal(12,2) money, Decimal(12,3) volume
+│  ├─ scripts/             setup-postgres.ps1 (role + DB + .env + push + seed)
+│  ├─ src/
+│  │  ├─ utils/calculator.js  authoritative F1–F17 engine
+│  │  ├─ day.js             daily save/close/reopen + atomic transaction
+│  │  ├─ modules.js         stock, expenses, credit, reports, dashboard
+│  │  └─ auth.js, db.js, index.js, seed.js
 │  └─ test/tc01.test.js    acceptance tests
 ├─ leads/index.html        standalone Yu Studio CRM leads screen
 ├─ public/                 BPCL dealer logo stand-in
@@ -272,8 +390,9 @@ edit them at the source.
 
   Run `node src/reset-owner.js` from `backend/`.
 
-- **Reset the demo database** (Windows): stop the API, delete
-  `backend/prisma/dev.db`, then `npx prisma db push` and `node src/seed.js`.
+- **Reset the demo database**: stop the API, drop and recreate the database
+  (or run `npm run db:setup` again), then `npx prisma db push` and
+  `node src/seed.js`. `prisma db push` never drops existing data by itself.
 - **Reopen a day** only from the UI; reopening is refused while a later day
   is closed, protecting the F14 cash chain. Every action is audited.
 

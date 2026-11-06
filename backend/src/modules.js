@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { prisma, num, audit, isDateKey, monthRange, businessDate } from './db.js'
 import { computedFor, ensureDay, settingsShape } from './day.js'
-import { computeDay, PRODUCTS } from '../../shared/calc.js'
 
 class HttpError extends Error {
   constructor(status, message, extra = {}) {
@@ -157,7 +156,7 @@ export async function putStock(req, res) {
 
   const fresh = await prisma.dailyReport.findUnique({ where: { id: report.id } })
   const { computed } = await computedFor(fresh)
-  await prisma.dailyReport.update({ where: { id: report.id }, data: { totals: JSON.stringify(computed) } })
+  await prisma.dailyReport.update({ where: { id: report.id }, data: { totals: computed } })
   await audit('stock.save', 'day', date, { date })
 
   res.json(await stockPayload(date))
@@ -199,7 +198,17 @@ export async function createExpense(req, res) {
   const parsed = expenseSchema.safeParse(req.body)
   if (!parsed.success) throw new HttpError(400, 'Invalid expense.', { issues: parsed.error.issues })
   await assertOpen(parsed.data.date)
-  const row = await prisma.expense.create({ data: parsed.data, include: { category: true } })
+  // Attach the expense to its day when the day has already been opened, so the
+  // row participates in the daily report relation while keeping the standalone
+  // Expenses screen usable on a date with no report yet.
+  const day = await prisma.dailyReport.findUnique({
+    where: { date: parsed.data.date },
+    select: { id: true },
+  })
+  const row = await prisma.expense.create({
+    data: { ...parsed.data, dailyReportId: day?.id ?? null },
+    include: { category: true },
+  })
   await audit('expense.create', 'expense', row.id, parsed.data)
   res.status(201).json({
     expense: {

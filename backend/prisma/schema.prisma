@@ -1,244 +1,302 @@
-// Tirap Fuel Station Manager — data model (PRD §10).
-// Dev runs on SQLite so the app can be verified end to end; switch the provider
-// and DATABASE_URL to PostgreSQL for staging/production (no model changes).
+// Tirap Fuel Station Manager — PostgreSQL data model (PRD §10).
+//
+// Strict typing:
+//   money  -> Decimal(12, 2)
+//   volume -> Decimal(12, 3)
+//   rates  -> Decimal(12, 2)
+// No Float columns. All tables are snake_case in PostgreSQL and are accessed
+// through PascalCase Prisma models. V1 is a single-pump deployment: there is
+// intentionally no station_id column.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+// ---------------------------------- auth ----------------------------------
+
 model User {
-  id             String    @id @default(cuid())
-  username       String    @unique
-  passwordHash   String
-  failedAttempts Int       @default(0)
-  lockedUntil    DateTime?
-  createdAt      DateTime  @default(now())
-  sessions       Session[]
+  id             String    @id @default(cuid()) @db.VarChar(64)
+  username       String    @unique @db.VarChar(64)
+  passwordHash   String    @map("password_hash") @db.VarChar(255)
+  failedAttempts Int       @default(0) @map("failed_attempts")
+  lockedUntil    DateTime? @map("locked_until") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  sessions Session[]
+
+  @@map("users")
 }
 
 model Session {
-  id        String   @id
-  userId    String
-  expiresAt DateTime
-  lastSeen  DateTime @default(now())
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @db.VarChar(128)
+  userId    String   @map("user_id") @db.VarChar(64)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  lastSeen  DateTime @default(now()) @map("last_seen") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@map("sessions")
 }
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  action    String
-  entity    String
-  entityId  String?
-  details   String?
-  createdAt DateTime @default(now())
+  id        String   @id @default(cuid()) @db.VarChar(64)
+  action    String   @db.VarChar(64)
+  entity    String   @db.VarChar(64)
+  entityId  String?  @map("entity_id") @db.VarChar(64)
+  details   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([createdAt])
+  @@index([entity, entityId])
+  @@map("audit_log")
 }
 
 model Setting {
-  id        Int      @id @default(1)
-  rounding  String   @default("paper")
-  marginMS  Decimal  @default(0)
-  marginHSD Decimal  @default(0)
-  lubeMargin Decimal @default(0)
-  stockLossValuation String @default("selling")
-  costMS    Decimal  @default(0)
-  costHSD   Decimal  @default(0)
-  varianceLimit Decimal @default(0)
-  maxMeterDigits Int @default(6)
-  stationName String  @default("Tirap Fuel Station")
-  updatedAt DateTime @updatedAt
+  id                 Int      @id @default(1)
+  rounding           String   @default("paper") @db.VarChar(16)
+  marginMS           Decimal  @default(0) @map("margin_ms") @db.Decimal(12, 2)
+  marginHSD          Decimal  @default(0) @map("margin_hsd") @db.Decimal(12, 2)
+  lubeMargin         Decimal  @default(0) @map("lube_margin") @db.Decimal(12, 2)
+  stockLossValuation String   @default("selling") @map("stock_loss_valuation") @db.VarChar(16)
+  costMS             Decimal  @default(0) @map("cost_ms") @db.Decimal(12, 2)
+  costHSD            Decimal  @default(0) @map("cost_hsd") @db.Decimal(12, 2)
+  varianceLimit      Decimal  @default(0) @map("variance_limit") @db.Decimal(12, 3)
+  maxMeterDigits     Int      @default(6) @map("max_meter_digits")
+  stationName        String   @default("Tirap Fuel Station") @map("station_name") @db.VarChar(120)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("settings")
 }
 
+// -------------------------------- daily day --------------------------------
+
 model Rate {
-  id      String  @id @default(cuid())
-  product String
-  date    String
-  rate    Decimal
+  id      String  @id @default(cuid()) @db.VarChar(64)
+  product String  @db.VarChar(8)
+  date    String  @db.VarChar(10)
+  rate    Decimal @db.Decimal(12, 2)
 
   @@unique([product, date])
+  @@index([date])
+  @@map("rates")
 }
 
 model DailyReport {
-  id              String    @id @default(cuid())
-  date            String    @unique
-  status          String    @default("open")
-  previousBalance Decimal   @default(0)
-  bankDeposit     Decimal   @default(0)
-  pos             Decimal   @default(0)
-  countedCash     Decimal   @default(0)
-  totals          String?
-  openedAt        DateTime  @default(now())
-  closedAt        DateTime?
-  updatedAt       DateTime  @updatedAt
+  id              String    @id @default(cuid()) @db.VarChar(64)
+  date            String    @unique @db.VarChar(10)
+  status          String    @default("open") @db.VarChar(16)
+  previousBalance Decimal   @default(0) @map("previous_balance") @db.Decimal(12, 2)
+  bankDeposit     Decimal   @default(0) @map("bank_deposit") @db.Decimal(12, 2)
+  pos             Decimal   @default(0) @db.Decimal(12, 2)
+  countedCash     Decimal   @default(0) @map("counted_cash") @db.Decimal(12, 2)
+  // Server-authoritative snapshot returned by the F1-F17 engine.
+  totals          Json?     @db.JsonB
+  openedAt        DateTime  @default(now()) @map("opened_at") @db.Timestamptz(3)
+  closedAt        DateTime? @map("closed_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  readings    NozzleReading[]
-  products    ProductDay[]
-  tanks       TankDay[]
-  lubeSales   LubeSale[]
-  online      OnlineReceipt[]
+  readings NozzleReading[]
+  products ProductDay[]
+  tanks    TankDay[]
+  lubeSales LubeSale[]
+  online   OnlineReceipt[]
+  expenses Expense[]
 
-  @@index([date])
+  @@map("daily_reports")
 }
 
 model Nozzle {
-  id        String  @id @default(cuid())
-  name      String
-  product   String
-  sortOrder Int     @default(0)
+  id        String  @id @default(cuid()) @db.VarChar(64)
+  name      String  @db.VarChar(80)
+  product   String  @db.VarChar(8)
+  sortOrder Int     @default(0) @map("sort_order")
   active    Boolean @default(true)
 
   readings NozzleReading[]
+
+  @@index([product, active])
+  @@map("nozzles")
 }
 
 model NozzleReading {
-  id            String  @id @default(cuid())
-  dailyReportId String
-  nozzleId      String
-  opening       Decimal @default(0)
-  closing       Decimal @default(0)
-  rollover      Boolean @default(false)
-  replacedLitres Decimal?
+  id             String  @id @default(cuid()) @db.VarChar(64)
+  dailyReportId  String  @map("daily_report_id") @db.VarChar(64)
+  nozzleId       String  @map("nozzle_id") @db.VarChar(64)
+  opening        Decimal @db.Decimal(12, 3)
+  closing        Decimal @db.Decimal(12, 3)
+  rollover       Boolean @default(false)
+  replacedLitres Decimal? @map("replaced_litres") @db.Decimal(12, 3)
 
   dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
-  nozzle      Nozzle      @relation(fields: [nozzleId], references: [id])
+  nozzle      Nozzle      @relation(fields: [nozzleId], references: [id], onDelete: Restrict)
 
   @@unique([dailyReportId, nozzleId])
+  @@map("nozzle_readings")
 }
 
 model ProductDay {
-  id            String  @id @default(cuid())
-  dailyReportId String
-  product       String
-  rfLitres      Decimal @default(0)
-  rfNote        String?
+  id            String  @id @default(cuid()) @db.VarChar(64)
+  dailyReportId String  @map("daily_report_id") @db.VarChar(64)
+  product       String  @db.VarChar(8)
+  rfLitres      Decimal @default(0) @map("rf_litres") @db.Decimal(12, 3)
+  rfNote        String? @map("rf_note") @db.VarChar(200)
 
   dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
 
   @@unique([dailyReportId, product])
+  @@map("product_day")
 }
 
 model Tank {
-  id      String @id @default(cuid())
-  name    String
-  product String
+  id      String  @id @default(cuid()) @db.VarChar(64)
+  name    String  @db.VarChar(80)
+  product String  @db.VarChar(8)
   active  Boolean @default(true)
 
   days     TankDay[]
   receipts StockReceipt[]
+
+  @@index([product, active])
+  @@map("tanks")
 }
 
 model TankDay {
-  id            String  @id @default(cuid())
-  dailyReportId String
-  tankId        String
-  opening       Decimal @default(0)
-  receipts      Decimal @default(0)
-  dip           Decimal @default(0)
+  id            String  @id @default(cuid()) @db.VarChar(64)
+  dailyReportId String  @map("daily_report_id") @db.VarChar(64)
+  tankId        String  @map("tank_id") @db.VarChar(64)
+  opening       Decimal @db.Decimal(12, 3)
+  receipts      Decimal @default(0) @db.Decimal(12, 3)
+  dip           Decimal @db.Decimal(12, 3)
 
   dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
-  tank        Tank        @relation(fields: [tankId], references: [id])
+  tank        Tank        @relation(fields: [tankId], references: [id], onDelete: Restrict)
 
   @@unique([dailyReportId, tankId])
+  @@map("tank_day")
 }
 
 model StockReceipt {
-  id      String  @id @default(cuid())
-  date    String
-  tankId  String
-  invoice String?
-  litres  Decimal
-  amount  Decimal @default(0)
-  createdAt DateTime @default(now())
+  id        String   @id @default(cuid()) @db.VarChar(64)
+  date      String   @db.VarChar(10)
+  tankId    String   @map("tank_id") @db.VarChar(64)
+  invoice   String?  @db.VarChar(80)
+  litres    Decimal  @db.Decimal(12, 3)
+  amount    Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  tank Tank @relation(fields: [tankId], references: [id])
+  tank Tank @relation(fields: [tankId], references: [id], onDelete: Restrict)
 
   @@index([date])
+  @@index([tankId])
+  @@map("stock_receipts")
 }
 
+// -------------------------------- lubricants -------------------------------
+
 model LubeItem {
-  id     String  @id @default(cuid())
-  name   String
-  price  Decimal @default(0)
+  id     String  @id @default(cuid()) @db.VarChar(64)
+  name   String  @db.VarChar(120)
+  price  Decimal @default(0) @db.Decimal(12, 2)
   active Boolean @default(true)
 
   sales LubeSale[]
+
+  @@map("lube_items")
 }
 
 model LubeSale {
-  id            String  @id @default(cuid())
-  dailyReportId String
-  itemId        String?
-  itemName      String
-  quantity      Decimal @default(0)
-  price         Decimal @default(0)
+  id            String  @id @default(cuid()) @db.VarChar(64)
+  dailyReportId String  @map("daily_report_id") @db.VarChar(64)
+  itemId        String? @map("item_id") @db.VarChar(64)
+  itemName      String  @map("item_name") @db.VarChar(120)
+  quantity      Decimal @default(0) @db.Decimal(12, 3)
+  price         Decimal @default(0) @db.Decimal(12, 2)
 
   dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
-  item        LubeItem?    @relation(fields: [itemId], references: [id])
+  item        LubeItem?    @relation(fields: [itemId], references: [id], onDelete: SetNull)
+
+  @@index([dailyReportId])
+  @@map("lube_sales")
 }
 
 model OnlineReceipt {
-  id            String  @id @default(cuid())
-  dailyReportId String
-  label         String
-  amount        Decimal @default(0)
+  id            String  @id @default(cuid()) @db.VarChar(64)
+  dailyReportId String  @map("daily_report_id") @db.VarChar(64)
+  label         String  @db.VarChar(80)
+  amount        Decimal @default(0) @db.Decimal(12, 2)
 
   dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+
+  @@index([dailyReportId])
+  @@map("online_receipts")
 }
 
+// --------------------------------- credit ----------------------------------
+
 model CreditParty {
-  id             String  @id @default(cuid())
-  name           String
-  phone          String?
-  creditLimit    Decimal @default(0)
-  openingBalance Decimal @default(0)
+  id             String  @id @default(cuid()) @db.VarChar(64)
+  name           String  @db.VarChar(80)
+  phone          String? @db.VarChar(20)
+  creditLimit    Decimal @default(0) @map("credit_limit") @db.Decimal(12, 2)
+  openingBalance Decimal @default(0) @map("opening_balance") @db.Decimal(12, 2)
   active         Boolean @default(true)
 
   transactions CreditTransaction[]
+
+  @@map("credit_parties")
 }
 
 model CreditTransaction {
-  id        String   @id @default(cuid())
-  date      String
-  partyId   String
-  type      String
-  amount    Decimal
-  mode      String   @default("cash")
-  note      String?
-  createdAt DateTime @default(now())
+  id        String   @id @default(cuid()) @db.VarChar(64)
+  date      String   @db.VarChar(10)
+  partyId   String   @map("party_id") @db.VarChar(64)
+  type      String   @db.VarChar(16)
+  amount    Decimal  @db.Decimal(12, 2)
+  mode      String   @default("cash") @db.VarChar(16)
+  note      String?  @db.VarChar(160)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   party CreditParty @relation(fields: [partyId], references: [id], onDelete: Cascade)
 
   @@index([date])
   @@index([partyId])
+  @@map("credit_transactions")
 }
 
+// -------------------------------- expenses ---------------------------------
+
 model ExpenseCategory {
-  id     String  @id @default(cuid())
-  name   String  @unique
+  id     String  @id @default(cuid()) @db.VarChar(64)
+  name   String  @unique @db.VarChar(40)
   active Boolean @default(true)
 
   expenses Expense[]
+
+  @@map("expense_categories")
 }
 
 model Expense {
-  id         String   @id @default(cuid())
-  date       String
-  categoryId String
-  type       String   @default("running")
-  details    String?
-  amount     Decimal
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid()) @db.VarChar(64)
+  date          String   @db.VarChar(10)
+  categoryId    String   @map("category_id") @db.VarChar(64)
+  dailyReportId String?  @map("daily_report_id") @db.VarChar(64)
+  type          String   @default("running") @db.VarChar(16)
+  details       String?  @db.VarChar(160)
+  amount        Decimal  @db.Decimal(12, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  category ExpenseCategory @relation(fields: [categoryId], references: [id])
+  category    ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  dailyReport DailyReport?    @relation(fields: [dailyReportId], references: [id], onDelete: SetNull)
 
   @@index([date])
+  @@index([dailyReportId])
+  @@index([categoryId])
+  @@map("expenses")
 }
