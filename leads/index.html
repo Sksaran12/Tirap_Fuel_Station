@@ -1,0 +1,1902 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#FFFFFF" />
+    <meta
+      name="description"
+      content="Yu Studio CRM - Leads screen recreation."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+:root {
+  --color-neutral-0: #ffffff;
+  --color-neutral-50: #f5f7f9;
+  --color-neutral-100: #eff1f3;
+  --color-neutral-200: #e2e4e6;
+  --color-neutral-350: #d2d5d9;
+  --color-neutral-400: #9ba0a6;
+  --color-neutral-600: #4e525a;
+  --color-neutral-700: #3b3f4b;
+  --color-neutral-850: #1b1e28;
+  --color-neutral-900: #0d0f14;
+  --color-neutral-1000: #1a1d25;
+  --color-ink-900: #17191f;
+  --color-ink-800: #262a32;
+  --red-50: #fde8e5;
+  --red-700: #b42318;
+  --amber-50: #fbf0da;
+  --amber-700: #a66a08;
+  --lime-50: #ecf5da;
+  --lime-700: #457f19;
+  --green-50: #e2f4e6;
+  --green-700: #147a3a;
+  --green-400: #07b93b;
+
+  --bg-canvas: var(--color-neutral-0);
+  --bg-sidebar: var(--color-neutral-50);
+  --bg-field: var(--color-neutral-100);
+  --bg-field-on-canvas: var(--color-neutral-50);
+  --bg-raised: var(--color-neutral-0);
+  --bg-primary: var(--color-ink-900);
+  --bg-primary-hover: var(--color-ink-800);
+  --bg-logo: var(--color-neutral-1000);
+  --text-primary: var(--color-neutral-900);
+  --text-secondary: var(--color-neutral-600);
+  --text-tertiary: var(--color-neutral-400);
+  --text-on-primary: var(--color-neutral-0);
+  --border-default: var(--color-neutral-200);
+  --border-strong: var(--color-neutral-350);
+  --icon-default: var(--color-neutral-600);
+  --icon-muted: var(--color-neutral-400);
+  --icon-strong: var(--color-neutral-900);
+  --chart-line: var(--color-ink-900);
+
+  --shadow-raised: 0 2px 5px rgba(13, 15, 20, 0.08), 0 1px 1px rgba(13, 15, 20, 0.05);
+  --shadow-floating: 0 12px 32px -4px rgba(13, 15, 20, 0.22), 0 2px 6px rgba(13, 15, 20, 0.1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg-canvas);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  overflow-x: hidden;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+svg {
+  display: block;
+}
+
+button,
+a,
+.nav-item,
+.tab,
+.icon-btn {
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+
+*:focus-visible {
+  outline: 2px solid #17191f;
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.text-kpi-value {
+  font-weight: 600;
+  font-size: 31.5px;
+  line-height: 38px;
+  letter-spacing: -0.4px;
+}
+
+.text-heading-page {
+  font-weight: 600;
+  font-size: 23.5px;
+  line-height: 30px;
+  letter-spacing: -0.3px;
+}
+
+.text-heading-brand {
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 22px;
+  letter-spacing: -0.25px;
+}
+
+.text-body-large {
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 22px;
+  letter-spacing: 0;
+}
+
+.text-body-medium {
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -0.25px;
+}
+
+.text-body-regular {
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -0.1px;
+}
+
+.text-body-small {
+  font-weight: 400;
+  font-size: 12.5px;
+  line-height: 18px;
+  letter-spacing: 0;
+}
+
+.text-label-tab {
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -0.15px;
+}
+
+.text-label-score {
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: 0;
+}
+
+.text-label-caps {
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.icon-btn {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--icon-default);
+}
+
+.icon-btn:hover {
+  color: var(--icon-strong);
+}
+
+.app-shell {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+  background: var(--bg-canvas);
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  align-self: flex-start;
+  width: 280px;
+  min-width: 280px;
+  max-width: 280px;
+  height: 100vh;
+  border-right: 1px solid var(--border-default);
+  background: var(--bg-sidebar);
+}
+
+.sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  width: 244px;
+  height: 100%;
+  margin: 0 auto;
+  padding-top: 19px;
+}
+
+.brand-block {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 48px;
+  flex: none;
+  align-items: center;
+}
+
+.logo-mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--bg-logo);
+}
+
+.logo-mark svg {
+  width: 24px;
+  height: 24px;
+}
+
+.brand-copy {
+  min-width: 0;
+  margin-left: 13px;
+}
+
+.brand-name {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-plan {
+  display: block;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-chevron {
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  color: var(--icon-muted);
+}
+
+.search-field {
+  display: flex;
+  width: 244px;
+  height: 38px;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin-top: 37px;
+  padding: 0 8px 0 12px;
+  border-radius: 10px;
+  background: var(--bg-field);
+}
+
+.search-field .icon {
+  color: var(--icon-muted);
+}
+
+.search-field input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.search-field input::placeholder {
+  color: var(--text-tertiary);
+  opacity: 1;
+}
+
+.keyboard-chip {
+  display: grid;
+  width: 26px;
+  height: 20px;
+  flex: none;
+  margin-left: auto;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--text-tertiary);
+}
+
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 21px;
+}
+
+.nav-item {
+  display: flex;
+  width: 100%;
+  height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+}
+
+.nav-item .icon {
+  color: var(--icon-default);
+}
+
+.nav-item:hover {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+
+.nav-item:hover .icon {
+  color: var(--icon-strong);
+}
+
+.nav-item.active {
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-raised);
+  color: var(--text-primary);
+}
+
+.nav-item.active .icon {
+  color: var(--icon-strong);
+}
+
+.nav-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-chip {
+  display: grid;
+  width: 29px;
+  height: 20px;
+  flex: none;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-bottom: 28px;
+}
+
+.user-block {
+  display: flex;
+  height: 42px;
+  align-items: center;
+  gap: 12px;
+  padding-left: 4px;
+}
+
+.avatar {
+  position: relative;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-neutral-200);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.online-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: grid;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-neutral-0);
+}
+
+.online-dot span {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--green-400);
+}
+
+.user-copy {
+  min-width: 0;
+}
+
+.user-name {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-email {
+  display: block;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.main {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  background: var(--bg-canvas);
+}
+
+.page-header {
+  display: flex;
+  height: 67px;
+  flex: none;
+  align-items: center;
+  padding-left: 18.6px;
+  padding-right: 18px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-canvas);
+}
+
+.page-title {
+  margin: 0;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.header-spacer {
+  min-width: 0;
+  flex: 1;
+}
+
+.header-utility {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.header-utility .icon-btn {
+  color: var(--icon-default);
+}
+
+.btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--bg-primary);
+  color: var(--text-on-primary);
+}
+
+.btn-primary:hover {
+  background: var(--bg-primary-hover);
+}
+
+.btn-share {
+  width: 62px;
+  margin-left: 16px;
+}
+
+.menu-toggle {
+  display: none;
+  width: 28px;
+  height: 28px;
+  margin-right: 4px;
+  margin-left: -5px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: none;
+  border-radius: 6px;
+}
+
+.menu-toggle span {
+  display: block;
+  width: 16px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: var(--icon-default);
+}
+
+.menu-toggle:hover {
+  background: var(--bg-field-on-canvas);
+}
+
+.menu-toggle:hover span {
+  background: var(--icon-strong);
+}
+
+.kpi-section {
+  height: 112px;
+  flex: none;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.kpi-scroll {
+  display: flex;
+  width: 100%;
+  height: 111px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.kpi-scroll::-webkit-scrollbar,
+.tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.kpi-card {
+  position: relative;
+  width: 290px;
+  min-width: 290px;
+  height: 111px;
+  flex: 0 0 290px;
+}
+
+.kpi-card + .kpi-card {
+  border-left: 1px solid var(--border-default);
+}
+
+.kpi-label {
+  position: absolute;
+  top: 19.8px;
+  left: 20.8px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.kpi-value-row {
+  position: absolute;
+  top: 53px;
+  left: 20.8px;
+  display: flex;
+  height: 38px;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.kpi-value {
+  color: var(--text-primary);
+}
+
+.trend-chip {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+
+.trend-chip.up {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+
+.trend-chip.down {
+  background: var(--red-50);
+  color: var(--red-700);
+}
+
+.trend-chip .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.sparkline {
+  position: absolute;
+  top: 44px;
+  right: 18.5px;
+  width: 82px;
+  height: 34px;
+}
+
+.tabs-section {
+  position: relative;
+  height: 55px;
+  flex: none;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.tabs-scroll {
+  width: 100%;
+  height: 55px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tabs-track {
+  position: relative;
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  height: 55px;
+  padding-left: 20px;
+}
+
+.tab {
+  display: flex;
+  height: 55px;
+  flex: none;
+  align-items: center;
+  border-radius: 0;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tab.active {
+  color: var(--text-primary);
+}
+
+.tab-all {
+  width: 89px;
+  min-width: 89px;
+  gap: 4.4px;
+  padding-left: 16.6px;
+  padding-right: 14px;
+}
+
+.tab-favourite {
+  padding-left: 24.8px;
+  padding-right: 22.45px;
+}
+
+.tab-new {
+  padding-left: 22.45px;
+  padding-right: 21.5px;
+}
+
+.tab-assigned {
+  padding-left: 21.5px;
+  padding-right: 25.45px;
+}
+
+.tab-overdue {
+  padding-left: 25.45px;
+  padding-right: 22.5px;
+}
+
+.tab-hot {
+  padding-left: 22.5px;
+  padding-right: 14px;
+}
+
+.tab-count {
+  display: grid;
+  width: 37px;
+  height: 26px;
+  flex: none;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--bg-field-on-canvas);
+  color: var(--text-secondary);
+}
+
+.tab-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 20px;
+  width: 89px;
+  height: 2px;
+  background: var(--bg-primary);
+}
+
+.toolbar {
+  display: flex;
+  width: 100%;
+  height: 93px;
+  flex: none;
+  align-items: center;
+  padding: 29px 18px 26px;
+}
+
+.toolbar-search {
+  width: 283px;
+  height: 38px;
+  flex: none;
+  padding-left: 9px;
+  padding-right: 10px;
+}
+
+.toolbar-search input {
+  width: 100%;
+}
+
+.toolbar-left-icons {
+  display: flex;
+  align-items: center;
+  gap: 42px;
+  margin-left: 22px;
+}
+
+.toolbar-spacer {
+  min-width: 0;
+  flex: 1;
+}
+
+.toolbar-right {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.toolbar-view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+}
+
+.view-toggle {
+  width: 16px;
+  height: 16px;
+  color: var(--icon-default);
+}
+
+.view-toggle.active {
+  color: var(--icon-strong);
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 24px;
+}
+
+.btn-secondary {
+  width: 88px;
+  height: 36px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding-left: 8px;
+  padding-right: 12px;
+  border-radius: 10px;
+  background: var(--bg-field-on-canvas);
+  color: var(--text-secondary);
+}
+
+.btn-secondary:hover {
+  background: var(--color-neutral-100);
+  color: var(--text-primary);
+}
+
+.btn-add-lead {
+  width: 102px;
+  height: 36px;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 10px;
+}
+
+.table-scroll-container {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  contain: paint;
+}
+
+.leads-table {
+  width: 100%;
+  min-width: 1160px;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.leads-table th,
+.leads-table td {
+  padding: 0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.leads-table thead tr {
+  height: 33px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.leads-table tbody tr {
+  height: 61.5px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.leads-table tbody tr:hover td {
+  background: var(--bg-sidebar);
+}
+
+.leads-table tbody tr:hover .sticky-col-1,
+.leads-table tbody tr:hover .sticky-col-2 {
+  background: var(--bg-sidebar);
+}
+
+.leads-table th {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.cell-select {
+  padding-left: 19px !important;
+  padding-right: 0 !important;
+}
+
+.cell-actions {
+  padding-left: 0 !important;
+  padding-right: 18px !important;
+  text-align: right;
+}
+
+.cell-score {
+  padding-top: 3px !important;
+}
+
+.customer-name,
+.manager-name {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-text {
+  display: block;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-badge {
+  display: inline-flex;
+  height: 23px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.score-badge {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+
+.score-poor {
+  background: var(--red-50);
+  color: var(--red-700);
+}
+
+.score-fair {
+  background: var(--amber-50);
+  color: var(--amber-700);
+}
+
+.score-good {
+  background: var(--lime-50);
+  color: var(--lime-700);
+}
+
+.score-excellent {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+
+.checkbox-wrap {
+  position: relative;
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  vertical-align: middle;
+}
+
+.checkbox {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: none;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  border-radius: 5px;
+  background: var(--bg-field);
+  cursor: pointer;
+}
+
+.checkbox:checked,
+.checkbox:indeterminate {
+  background: var(--bg-primary);
+}
+
+.checkbox-check {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  color: var(--text-on-primary);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.checkbox:checked + .checkbox-check {
+  opacity: 1;
+}
+
+.checkbox-bar {
+  position: absolute;
+  top: 8px;
+  left: 4px;
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--text-on-primary);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.checkbox:indeterminate + .checkbox-bar {
+  opacity: 1;
+}
+
+.row-action {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  color: var(--icon-muted);
+}
+
+.row-action:hover {
+  color: var(--icon-default);
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: none;
+  background: rgba(13, 15, 20, 0.4);
+}
+
+.sidebar-overlay.active {
+  display: block;
+}
+
+@media (max-width: 1279px) {
+  .table-scroll-container {
+    overflow-x: auto;
+  }
+
+  .leads-table {
+    min-width: 1160px;
+  }
+
+  .toolbar-left-icons {
+    gap: 20px;
+  }
+
+  .toolbar-view-toggle {
+    gap: 20px;
+  }
+}
+
+@media (max-width: 1100px) and (min-width: 1024px) {
+  .toolbar-search {
+    width: 220px;
+  }
+}
+
+@media (max-width: 899px) and (min-width: 768px) {
+  .toolbar-search {
+    width: 240px;
+  }
+
+  .toolbar-view-toggle {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  #sidebar.sidebar-collapsed {
+    width: 72px !important;
+    min-width: 72px !important;
+    max-width: 72px !important;
+    flex: 0 0 72px !important;
+  }
+
+  .sidebar-inner {
+    width: 100%;
+    padding: 19px 0 0;
+  }
+
+  .brand-block {
+    justify-content: center;
+  }
+
+  .brand-copy,
+  .brand-chevron,
+  .nav-label,
+  .nav-chip,
+  .keyboard-chip,
+  .user-copy {
+    display: none;
+  }
+
+  .search-field {
+    width: 40px;
+    height: 38px;
+    margin-right: auto;
+    margin-left: auto;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .search-field input {
+    display: none;
+  }
+
+  .nav-item {
+    width: 40px;
+    height: 38px;
+    margin-right: auto;
+    margin-left: auto;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .user-block {
+    justify-content: center;
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  body.drawer-open {
+    overflow: hidden;
+  }
+
+  #sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: -280px;
+    z-index: 50;
+    width: 280px;
+    min-width: 280px;
+    max-width: 280px;
+    height: 100vh;
+    transition: left 300ms ease-out;
+  }
+
+  #sidebar.active {
+    left: 0;
+  }
+
+  .menu-toggle {
+    display: inline-flex;
+  }
+
+  .header-utility {
+    display: none;
+  }
+
+  .page-header {
+    padding-left: 18px;
+  }
+
+  .kpi-scroll {
+    scroll-snap-type: x mandatory;
+  }
+
+  .kpi-card {
+    scroll-snap-align: start;
+  }
+
+  .sticky-col-1 {
+    position: sticky;
+    left: 0;
+    z-index: 20;
+    background: var(--bg-canvas);
+  }
+
+  .sticky-col-2 {
+    position: sticky;
+    left: 66px;
+    z-index: 20;
+    background: var(--bg-canvas);
+  }
+
+  .leads-table tbody tr:hover .sticky-col-1,
+  .leads-table tbody tr:hover .sticky-col-2 {
+    background: var(--bg-sidebar);
+  }
+
+  .leads-table th.sticky-col-1,
+  .leads-table th.sticky-col-2 {
+    z-index: 30;
+    background: var(--bg-canvas);
+  }
+
+  .toolbar-left-icons,
+  .toolbar-view-toggle,
+  .btn-import,
+  .btn-export {
+    display: none;
+  }
+
+  .toolbar-search {
+    width: auto;
+    min-width: 0;
+    flex: 1;
+    margin-right: 12px;
+  }
+
+  .toolbar-actions {
+    gap: 0;
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* APPEND */
+    </style>
+    <title>Leads - Yu Studio</title>
+  </head>
+  <body>
+    <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+      <symbol id="i-announcement-01" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 11v3a2 2 0 0 0 2 2h2l5 3V6L8 9H6a2 2 0 0 0-2 2Z" />
+        <path d="M16 9a4 4 0 0 1 0 6" />
+        <path d="M19 6a8 8 0 0 1 0 12" />
+      </symbol>
+      <symbol id="i-bell-01" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8.5a6 6 0 0 0-12 0c0 6.5-2.5 7-2.5 8.5h17c0-1.5-2.5-2-2.5-8.5Z" />
+        <path d="M10 21h4" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m5 12 4.5 4.5L19 6" />
+      </symbol>
+      <symbol id="i-chevron-selector-vertical" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m8 9.5 4-4 4 4" />
+        <path d="m8 14.5 4 4 4-4" />
+      </symbol>
+      <symbol id="i-clipboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 4.5H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6.5a2 2 0 0 0-2-2h-2" />
+        <rect x="9" y="2.5" width="6" height="4" rx="1" />
+        <path d="M8.5 11h7" />
+        <path d="M8.5 15h5" />
+      </symbol>
+      <symbol id="i-dots-horizontal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" />
+        <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+        <circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" />
+      </symbol>
+      <symbol id="i-download-cloud-01" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 18a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17.6 9 3.5 3.5 0 0 1 18 16" />
+        <path d="M12 12v7" />
+        <path d="m9.5 16.5 2.5 2.5 2.5-2.5" />
+      </symbol>
+      <symbol id="i-filter-funnel-01" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z" />
+      </symbol>
+      <symbol id="i-grid-01" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3.5" y="3.5" width="7" height="7" rx="1" />
+        <rect x="13.5" y="3.5" width="7" height="7" rx="1" />
+        <rect x="3.5" y="13.5" width="7" height="7" rx="1" />
+        <rect x="13.5" y="13.5" width="7" height="7" rx="1" />
+      </symbol>
+      <symbol id="i-help-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9.5 9a2.5 2.5 0 1 1 4.2 1.8c-.9.8-1.7 1.2-1.7 2.7" />
+        <path d="M12 17h.01" />
+      </symbol>
+      <symbol id="i-info-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v5" />
+        <path d="M12 8h.01" />
+      </symbol>
+      <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 6h13" />
+        <path d="M8 12h13" />
+        <path d="M8 18h13" />
+        <path d="M3 6h.01" />
+        <path d="M3 12h.01" />
+        <path d="M3 18h.01" />
+      </symbol>
+      <symbol id="i-message-text-square-01" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a3 3 0 0 1-3 3H8l-5 3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v9Z" />
+        <path d="M8 8h8" />
+        <path d="M8 12h5" />
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </symbol>
+      <symbol id="i-search-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-4-4" />
+      </symbol>
+      <symbol id="i-search-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="m19 19-4.4-4.4" />
+      </symbol>
+      <symbol id="i-settings-01" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6h.09a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1Z" />
+      </symbol>
+      <symbol id="i-settings-04" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 6h16" />
+        <path d="M4 12h16" />
+        <path d="M4 18h16" />
+        <circle cx="9" cy="6" r="2" fill="#FFFFFF" />
+        <circle cx="15" cy="12" r="2" fill="#FFFFFF" />
+        <circle cx="7" cy="18" r="2" fill="#FFFFFF" />
+      </symbol>
+      <symbol id="i-switch-vertical-01" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 8h8l-4-4-4 4Z" />
+        <path d="M8 16h8l-4 4-4-4Z" />
+      </symbol>
+      <symbol id="i-target-04" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="8" />
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v3" />
+        <path d="M12 19v3" />
+        <path d="M2 12h3" />
+        <path d="M19 12h3" />
+      </symbol>
+      <symbol id="i-trend-down-01" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m3 7 6 6 4-4 8 8" />
+        <path d="M21 17v-6h-6" />
+      </symbol>
+      <symbol id="i-trend-up-01" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m3 17 6-6 4 4 8-8" />
+        <path d="M21 7v6h-6" />
+      </symbol>
+      <symbol id="i-upload-cloud-01" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 18a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17.6 9 3.5 3.5 0 0 1 18 16" />
+        <path d="M12 21v-7" />
+        <path d="m9.5 16.5 2.5-2.5 2.5 2.5" />
+      </symbol>
+      <symbol id="i-user-plus-01" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="8" r="4" />
+        <path d="M2.5 21a6.5 6.5 0 0 1 13 0" />
+        <path d="M19 8v6" />
+        <path d="M16 11h6" />
+      </symbol>
+      <symbol id="i-users-01" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="8" r="4" />
+        <path d="M2.5 21a6.5 6.5 0 0 1 13 0" />
+        <path d="M16 4.5a4 4 0 0 1 0 7.5" />
+        <path d="M17 15a7 7 0 0 1 4.5 6" />
+      </symbol>
+    </svg>
+
+    <div class="app-shell flex min-h-screen w-full">
+      <aside id="sidebar" class="sidebar sidebar-collapsed" aria-label="Primary navigation">
+        <div class="sidebar-inner">
+          <div class="brand-block">
+            <div class="logo-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M5 5h5l2 3 2-3h5l-5.5 7.4V19h-3v-6.6L5 5Z" fill="#FFFFFF" />
+              </svg>
+            </div>
+            <div class="brand-copy">
+              <span class="text-heading-brand brand-name">Yu Studio</span>
+              <span class="text-body-regular brand-plan">Plus plan</span>
+            </div>
+            <button class="icon-btn brand-chevron" type="button" aria-label="Switch workspace">
+              <svg class="icon"><use href="#i-chevron-selector-vertical"></use></svg>
+            </button>
+          </div>
+
+          <label class="search-field" for="sidebar-search">
+            <svg class="icon" aria-hidden="true"><use href="#i-search-lg"></use></svg>
+            <input id="sidebar-search" type="search" placeholder="Search" aria-label="Search" />
+            <span class="text-body-small keyboard-chip" aria-hidden="true">/</span>
+          </label>
+
+          <nav class="nav-list" aria-label="Sidebar">
+            <a class="nav-item text-body-regular" href="#">
+              <svg class="icon" aria-hidden="true"><use href="#i-target-04"></use></svg>
+              <span class="nav-label">Dashboard</span>
+            </a>
+            <a class="nav-item text-body-regular active" href="#" aria-current="page">
+              <svg class="icon" aria-hidden="true"><use href="#i-user-plus-01"></use></svg>
+              <span class="nav-label">Leads</span>
+            </a>
+            <a class="nav-item text-body-regular" href="#">
+              <svg class="icon" aria-hidden="true"><use href="#i-message-text-square-01"></use></svg>
+              <span class="nav-label">Messages</span>
+              <span class="text-label-score nav-chip">4</span>
+            </a>
+            <a class="nav-item text-body-regular" href="#">
+              <svg class="icon" aria-hidden="true"><use href="#i-clipboard"></use></svg>
+              <span class="nav-label">Orders</span>
+            </a>
+            <a class="nav-item text-body-regular" href="#">
+              <svg class="icon" aria-hidden="true"><use href="#i-users-01"></use></svg>
+              <span class="nav-label">Customers</span>
+            </a>
+            <a class="nav-item text-body-regular" href="#">
+              <svg class="icon" aria-hidden="true"><use href="#i-announcement-01"></use></svg>
+              <span class="nav-label">Feedback</span>
+              <span class="text-label-score nav-chip">1</span>
+            </a>
+            <a class="nav-item text-body-regular" href="#">
+              <svg class="icon" aria-hidden="true"><use href="#i-help-circle"></use></svg>
+              <span class="nav-label">Help Center</span>
+            </a>
+            <a class="nav-item text-body-regular" href="#">
+              <svg class="icon" aria-hidden="true"><use href="#i-settings-01"></use></svg>
+              <span class="nav-label">Settings</span>
+            </a>
+          </nav>
+
+          <div class="sidebar-footer">
+            <div class="user-block">
+              <div class="avatar" aria-hidden="true">
+                SZ
+                <span class="online-dot"><span></span></span>
+              </div>
+              <div class="user-copy">
+                <span class="text-heading-brand user-name">Stephen Z.</span>
+                <span class="text-body-regular user-email">Stephen@yustudio.design</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <button id="sidebar-overlay" class="sidebar-overlay" type="button" aria-label="Close navigation" tabindex="-1"></button>
+
+      <main id="main" class="main flex-1 min-w-0">
+        <header class="page-header">
+          <button id="menu-toggle" class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar">
+            <span></span><span></span><span></span>
+          </button>
+          <h1 class="text-heading-page page-title">Leads</h1>
+          <div class="header-spacer flex-1"></div>
+          <div class="header-utility">
+            <button class="icon-btn" type="button" aria-label="Help and information">
+              <svg class="icon"><use href="#i-info-circle"></use></svg>
+            </button>
+            <button class="icon-btn" type="button" aria-label="Workspace settings">
+              <svg class="icon"><use href="#i-settings-01"></use></svg>
+            </button>
+            <button class="icon-btn" type="button" aria-label="Notifications">
+              <svg class="icon"><use href="#i-bell-01"></use></svg>
+            </button>
+          </div>
+          <button class="btn btn-primary btn-share text-body-regular" type="button">Share</button>
+        </header>
+
+        <section class="kpi-section" aria-label="Lead metrics">
+          <div class="kpi-scroll">
+            <article class="kpi-card">
+              <span class="text-body-regular kpi-label">New Leads</span>
+              <div class="kpi-value-row">
+                <span class="text-kpi-value kpi-value">151</span>
+                <span class="text-label-score trend-chip up">
+                  <svg class="icon" aria-hidden="true"><use href="#i-trend-up-01"></use></svg>
+                  19%
+                </span>
+              </div>
+              <svg class="sparkline" viewBox="0 0 82 34" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#17191F" stop-opacity="0.10" />
+                    <stop offset="100%" stop-color="#17191F" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+                <path d="M0 27 L10 25 L18 26 L26 21 L34 23 L42 18 L50 20 L58 14 L66 16 L74 8 L82 5 L82 34 L0 34 Z" fill="url(#g1)" />
+                <path d="M0 27 L10 25 L18 26 L26 21 L34 23 L42 18 L50 20 L58 14 L66 16 L74 8 L82 5" fill="none" stroke="#17191F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </article>
+
+            <article class="kpi-card">
+              <span class="text-body-regular kpi-label">Qualified Leads</span>
+              <div class="kpi-value-row">
+                <span class="text-kpi-value kpi-value">59</span>
+                <span class="text-label-score trend-chip up">
+                  <svg class="icon" aria-hidden="true"><use href="#i-trend-up-01"></use></svg>
+                  19%
+                </span>
+              </div>
+              <svg class="sparkline" viewBox="0 0 82 34" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#17191F" stop-opacity="0.10" />
+                    <stop offset="100%" stop-color="#17191F" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+                <path d="M0 28 L8 26 L16 28 L24 22 L32 24 L40 18 L48 15 L56 17 L64 10 L72 12 L82 7 L82 34 L0 34 Z" fill="url(#g2)" />
+                <path d="M0 28 L8 26 L16 28 L24 22 L32 24 L40 18 L48 15 L56 17 L64 10 L72 12 L82 7" fill="none" stroke="#17191F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </article>
+
+            <article class="kpi-card">
+              <span class="text-body-regular kpi-label">Avg Response Time</span>
+              <div class="kpi-value-row">
+                <span class="text-kpi-value kpi-value">1h 3m</span>
+                <span class="text-label-score trend-chip up">
+                  <svg class="icon" aria-hidden="true"><use href="#i-trend-up-01"></use></svg>
+                  19%
+                </span>
+              </div>
+              <svg class="sparkline" viewBox="0 0 82 34" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <linearGradient id="g3" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#17191F" stop-opacity="0.10" />
+                    <stop offset="100%" stop-color="#17191F" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+                <path d="M0 29 L9 27 L18 24 L27 25 L36 20 L45 22 L54 16 L63 18 L72 12 L82 9 L82 34 L0 34 Z" fill="url(#g3)" />
+                <path d="M0 29 L9 27 L18 24 L27 25 L36 20 L45 22 L54 16 L63 18 L72 12 L82 9" fill="none" stroke="#17191F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </article>
+
+            <article class="kpi-card">
+              <span class="text-body-regular kpi-label">Hot Leads</span>
+              <div class="kpi-value-row">
+                <span class="text-kpi-value kpi-value">23</span>
+                <span class="text-label-score trend-chip down">
+                  <svg class="icon" aria-hidden="true"><use href="#i-trend-down-01"></use></svg>
+                  19%
+                </span>
+              </div>
+              <svg class="sparkline" viewBox="0 0 82 34" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <linearGradient id="g4" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#17191F" stop-opacity="0.10" />
+                    <stop offset="100%" stop-color="#17191F" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+                <path d="M0 8 L10 10 L18 7 L26 12 L34 14 L42 13 L50 18 L58 20 L66 22 L74 25 L82 28 L82 34 L0 34 Z" fill="url(#g4)" />
+                <path d="M0 8 L10 10 L18 7 L26 12 L34 14 L42 13 L50 18 L58 20 L66 22 L74 25 L82 28" fill="none" stroke="#17191F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </article>
+          </div>
+        </section>
+
+        <section class="tabs-section" aria-label="Lead filters">
+          <div class="tabs-scroll">
+            <div class="tabs-track" role="tablist" aria-label="Lead filters">
+              <span class="tab-indicator" aria-hidden="true"></span>
+              <button class="tab tab-all text-label-tab active" type="button" role="tab" aria-selected="true">
+                All
+                <span class="text-label-score tab-count">426</span>
+              </button>
+              <button class="tab tab-favourite text-label-tab" type="button" role="tab" aria-selected="false">Favourite</button>
+              <button class="tab tab-new text-label-tab" type="button" role="tab" aria-selected="false">New</button>
+              <button class="tab tab-assigned text-label-tab" type="button" role="tab" aria-selected="false">Assigned to me</button>
+              <button class="tab tab-overdue text-label-tab" type="button" role="tab" aria-selected="false">Overdue</button>
+              <button class="tab tab-hot text-label-tab" type="button" role="tab" aria-selected="false">Hot</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="toolbar" aria-label="Lead tools">
+          <label class="search-field toolbar-search" for="lead-search">
+            <svg class="icon" aria-hidden="true"><use href="#i-search-md"></use></svg>
+            <input id="lead-search" type="search" placeholder="Search" aria-label="Search leads" />
+          </label>
+
+          <div class="toolbar-left-icons">
+            <button class="icon-btn" type="button" aria-label="Filter leads">
+              <svg class="icon"><use href="#i-filter-funnel-01"></use></svg>
+            </button>
+            <button class="icon-btn" type="button" aria-label="Sort leads">
+              <svg class="icon"><use href="#i-switch-vertical-01"></use></svg>
+            </button>
+            <button class="icon-btn" type="button" aria-label="Table settings">
+              <svg class="icon"><use href="#i-settings-04"></use></svg>
+            </button>
+          </div>
+
+          <div class="toolbar-spacer flex-1"></div>
+
+          <div class="toolbar-right">
+            <div class="toolbar-view-toggle">
+              <button class="view-toggle active" type="button" aria-label="List view" aria-pressed="true">
+                <svg class="icon"><use href="#i-list"></use></svg>
+              </button>
+              <button class="view-toggle" type="button" aria-label="Grid view" aria-pressed="false">
+                <svg class="icon"><use href="#i-grid-01"></use></svg>
+              </button>
+            </div>
+            <div class="toolbar-actions">
+              <button class="btn btn-secondary btn-import text-body-regular" type="button">
+                <svg class="icon" aria-hidden="true"><use href="#i-upload-cloud-01"></use></svg>
+                Import
+              </button>
+              <button class="btn btn-secondary btn-export text-body-regular" type="button">
+                <svg class="icon" aria-hidden="true"><use href="#i-download-cloud-01"></use></svg>
+                Export
+              </button>
+              <button class="btn btn-primary btn-add-lead text-body-regular" type="button">
+                <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>
+                Add lead
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <div class="table-scroll-container">
+          <table class="leads-table table-min-width" aria-label="Leads">
+            <caption class="sr-only">Leads</caption>
+            <colgroup>
+              <col style="width: 66px" />
+              <col style="width: 155px" />
+              <col style="width: 149px" />
+              <col />
+              <col style="width: 130px" />
+              <col style="width: 120px" />
+              <col style="width: 95px" />
+              <col style="width: 74px" />
+              <col style="width: 125px" />
+              <col style="width: 34px" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="cell-select sticky-col-1" scope="col">
+                  <span class="checkbox-wrap">
+                    <input id="select-all" class="checkbox" type="checkbox" aria-checked="mixed" />
+                    <span class="checkbox-bar" aria-hidden="true"></span>
+                    <label class="sr-only" for="select-all">Select all leads</label>
+                  </span>
+                </th>
+                <th class="sticky-col-2 text-body-regular" scope="col">Customer</th>
+                <th class="text-body-regular" scope="col">Company</th>
+                <th class="text-body-regular" scope="col">Email</th>
+                <th class="text-body-regular" scope="col">Status</th>
+                <th class="text-body-regular" scope="col">Manager</th>
+                <th class="text-body-regular" scope="col">Source</th>
+                <th class="text-body-regular" scope="col">Score</th>
+                <th class="text-body-regular" scope="col">Created</th>
+                <th class="cell-actions" scope="col"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="cell-select sticky-col-1">
+                  <span class="checkbox-wrap">
+                    <input id="lead-1" class="checkbox" type="checkbox" />
+                    <svg class="checkbox-check" aria-hidden="true"><use href="#i-check"></use></svg>
+                    <label class="sr-only" for="lead-1">Select Emma Johansson</label>
+                  </span>
+                </td>
+                <td class="sticky-col-2"><span class="text-body-medium customer-name">Emma Johansson</span></td>
+                <td><span class="text-body-regular cell-text">Nordic Soft AB</span></td>
+                <td><span class="text-body-regular cell-text">emma@nordicsoft.io</span></td>
+                <td><span class="status-badge text-label-caps">HOT</span></td>
+                <td><span class="text-body-medium manager-name">Jacob Müller</span></td>
+                <td><span class="text-body-regular cell-text">Website</span></td>
+                <td class="cell-score"><span class="score-badge score-excellent text-label-score">9/10</span></td>
+                <td><span class="text-body-regular cell-text">Dec 08, 2025</span></td>
+                <td class="cell-actions"><button class="row-action" type="button" aria-label="Open actions for Emma Johansson"><svg class="icon"><use href="#i-dots-horizontal"></use></svg></button></td>
+              </tr>
+              <tr>
+                <td class="cell-select sticky-col-1">
+                  <span class="checkbox-wrap">
+                    <input id="lead-2" class="checkbox" type="checkbox" />
+                    <svg class="checkbox-check" aria-hidden="true"><use href="#i-check"></use></svg>
+                    <label class="sr-only" for="lead-2">Select Ethan Wilson</label>
+                  </span>
+                </td>
+                <td class="sticky-col-2"><span class="text-body-medium customer-name">Ethan Wilson</span></td>
+                <td><span class="text-body-regular cell-text">Travel Ventures</span></td>
+                <td><span class="text-body-regular cell-text">ethan@travelventures.com</span></td>
+                <td><span class="status-badge text-label-caps">OPEN</span></td>
+                <td><span class="text-body-medium manager-name">Olivia Davis</span></td>
+                <td><span class="text-body-regular cell-text">LinkedIn</span></td>
+                <td class="cell-score"><span class="score-badge score-good text-label-score">6/10</span></td>
+                <td><span class="text-body-regular cell-text">Dec 07, 2025</span></td>
+                <td class="cell-actions"><button class="row-action" type="button" aria-label="Open actions for Ethan Wilson"><svg class="icon"><use href="#i-dots-horizontal"></use></svg></button></td>
+              </tr>
+              <tr>
+                <td class="cell-select sticky-col-1">
+                  <span class="checkbox-wrap">
+                    <input id="lead-3" class="checkbox" type="checkbox" />
+                    <svg class="checkbox-check" aria-hidden="true"><use href="#i-check"></use></svg>
+                    <label class="sr-only" for="lead-3">Select Isabella Hernandez</label>
+                  </span>
+                </td>
+                <td class="sticky-col-2"><span class="text-body-medium customer-name">Isabella Hernandez</span></td>
+                <td><span class="text-body-regular cell-text">Design Studios</span></td>
+                <td><span class="text-body-regular cell-text">isabella@designstudios.net</span></td>
+                <td><span class="status-badge text-label-caps">NEW</span></td>
+                <td><span class="text-body-medium manager-name">Liam Johnson</span></td>
+                <td><span class="text-body-regular cell-text">X</span></td>
+                <td class="cell-score"><span class="score-badge score-fair text-label-score">4/10</span></td>
+                <td><span class="text-body-regular cell-text">Dec 06, 2025</span></td>
+                <td class="cell-actions"><button class="row-action" type="button" aria-label="Open actions for Isabella Hernandez"><svg class="icon"><use href="#i-dots-horizontal"></use></svg></button></td>
+              </tr>
+              <tr>
+                <td class="cell-select sticky-col-1">
+                  <span class="checkbox-wrap">
+                    <input id="lead-4" class="checkbox" type="checkbox" checked />
+                    <svg class="checkbox-check" aria-hidden="true"><use href="#i-check"></use></svg>
+                    <label class="sr-only" for="lead-4">Select William Lee</label>
+                  </span>
+                </td>
+                <td class="sticky-col-2"><span class="text-body-medium customer-name">William Lee</span></td>
+                <td><span class="text-body-regular cell-text">AI Dynamics</span></td>
+                <td><span class="text-body-regular cell-text">w.lee@aidynamics.com</span></td>
+                <td><span class="status-badge text-label-caps">HOT</span></td>
+                <td><span class="text-body-medium manager-name">James Smith</span></td>
+                <td><span class="text-body-regular cell-text">Facebook</span></td>
+                <td class="cell-score"><span class="score-badge score-good text-label-score">7/10</span></td>
+                <td><span class="text-body-regular cell-text">Dec 05, 2025</span></td>
+                <td class="cell-actions"><button class="row-action" type="button" aria-label="Open actions for William Lee"><svg class="icon"><use href="#i-dots-horizontal"></use></svg></button></td>
+              </tr>
+              <tr>
+                <td class="cell-select sticky-col-1">
+                  <span class="checkbox-wrap">
+                    <input id="lead-5" class="checkbox" type="checkbox" />
+                    <svg class="checkbox-check" aria-hidden="true"><use href="#i-check"></use></svg>
+                    <label class="sr-only" for="lead-5">Select Sophia Martinez</label>
+                  </span>
+                </td>
+                <td class="sticky-col-2"><span class="text-body-medium customer-name">Sophia Martinez</span></td>
+                <td><span class="text-body-regular cell-text">EcoTech Solutions</span></td>
+                <td><span class="text-body-regular cell-text">sophia@ecotech.io</span></td>
+                <td><span class="status-badge text-label-caps">QUALIFIED</span></td>
+                <td><span class="text-body-medium manager-name">Olivia Davis</span></td>
+                <td><span class="text-body-regular cell-text">Instagram</span></td>
+                <td class="cell-score"><span class="score-badge score-good text-label-score">6/10</span></td>
+                <td><span class="text-body-regular cell-text">Dec 04, 2025</span></td>
+                <td class="cell-actions"><button class="row-action" type="button" aria-label="Open actions for Sophia Martinez"><svg class="icon"><use href="#i-dots-horizontal"></use></svg></button></td>
+              </tr>
+              <tr>
+                <td class="cell-select sticky-col-1">
+                  <span class="checkbox-wrap">
+                    <input id="lead-6" class="checkbox" type="checkbox" />
+                    <svg class="checkbox-check" aria-hidden="true"><use href="#i-check"></use></svg>
+                    <label class="sr-only" for="lead-6">Select Ava Clark</label>
+                  </span>
+                </td>
+                <td class="sticky-col-2"><span class="text-body-medium customer-name">Ava Clark</span></td>
+                <td><span class="text-body-regular cell-text">Smart Homes Inc.</span></td>
+                <td><span class="text-body-regular cell-text">ava@smarthomes.com</span></td>
+                <td><span class="status-badge text-label-caps">IN PROGRESS</span></td>
+                <td><span class="text-body-medium manager-name">Noah Garcia</span></td>
+                <td><span class="text-body-regular cell-text">Website</span></td>
+                <td class="cell-score"><span class="score-badge score-poor text-label-score">1/10</span></td>
+                <td><span class="text-body-regular cell-text">Dec 03, 2025</span></td>
+                <td class="cell-actions"><button class="row-action" type="button" aria-label="Open actions for Ava Clark"><svg class="icon"><use href="#i-dots-horizontal"></use></svg></button></td>
+              </tr>
+              <tr>
+                <td class="cell-select sticky-col-1">
+                  <span class="checkbox-wrap">
+                    <input id="lead-7" class="checkbox" type="checkbox" checked />
+                    <svg class="checkbox-check" aria-hidden="true"><use href="#i-check"></use></svg>
+                    <label class="sr-only" for="lead-7">Select Lily Walker</label>
+                  </span>
+                </td>
+                <td class="sticky-col-2"><span class="text-body-medium customer-name">Lily Walker</span></td>
+                <td><span class="text-body-regular cell-text">Foodie Connect</span></td>
+                <td><span class="text-body-regular cell-text">walker@foodieconnect.com</span></td>
+                <td><span class="status-badge text-label-caps">NEW</span></td>
+                <td><span class="text-body-medium manager-name">Zoe Lewis</span></td>
+                <td><span class="text-body-regular cell-text">Instagram</span></td>
+                <td class="cell-score"><span class="score-badge score-good text-label-score">6/10</span></td>
+                <td><span class="text-body-regular cell-text">Dec 02, 2025</span></td>
+                <td class="cell-actions"><button class="row-action" type="button" aria-label="Open actions for Lily Walker"><svg class="icon"><use href="#i-dots-horizontal"></use></svg></button></td>
+              </tr>
+              <tr>
+                <td class="cell-select sticky-col-1">
+                  <span class="checkbox-wrap">
+                    <input id="lead-8" class="checkbox" type="checkbox" checked />
+                    <svg class="checkbox-check" aria-hidden="true"><use href="#i-check"></use></svg>
+                    <label class="sr-only" for="lead-8">Select James Young</label>
+                  </span>
+                </td>
+                <td class="sticky-col-2"><span class="text-body-medium customer-name">James Young</span></td>
+                <td><span class="text-body-regular cell-text">Fashion Trendz</span></td>
+                <td><span class="text-body-regular cell-text">j.young@fashiontrendz.com</span></td>
+                <td><span class="status-badge text-label-caps">PENDING</span></td>
+                <td><span class="text-body-medium manager-name">Oliver Hall</span></td>
+                <td><span class="text-body-regular cell-text">LinkedIn</span></td>
+                <td class="cell-score"><span class="score-badge score-fair text-label-score">5/10</span></td>
+                <td><span class="text-body-regular cell-text">Dec 02, 2025</span></td>
+                <td class="cell-actions"><button class="row-action" type="button" aria-label="Open actions for James Young"><svg class="icon"><use href="#i-dots-horizontal"></use></svg></button></td>
+              </tr>
+              <tr>
+                <td class="cell-select sticky-col-1">
+                  <span class="checkbox-wrap">
+                    <input id="lead-9" class="checkbox" type="checkbox" />
+                    <svg class="checkbox-check" aria-hidden="true"><use href="#i-check"></use></svg>
+                    <label class="sr-only" for="lead-9">Select Mason Allen</label>
+                  </span>
+                </td>
+                <td class="sticky-col-2"><span class="text-body-medium customer-name">Mason Allen</span></td>
+                <td><span class="text-body-regular cell-text">Virtual Reality Co.</span></td>
+                <td><span class="text-body-regular cell-text">mason@vrco.io</span></td>
+                <td><span class="status-badge text-label-caps">QUALIFIED</span></td>
+                <td><span class="text-body-medium manager-name">Emily King</span></td>
+                <td><span class="text-body-regular cell-text">Facebook</span></td>
+                <td class="cell-score"><span class="score-badge score-excellent text-label-score">9/10</span></td>
+                <td><span class="text-body-regular cell-text">Dec 01, 2025</span></td>
+                <td class="cell-actions"><button class="row-action" type="button" aria-label="Open actions for Mason Allen"><svg class="icon"><use href="#i-dots-horizontal"></use></svg></button></td>
+              </tr>
+              <tr>
+                <td class="cell-select sticky-col-1">
+                  <span class="checkbox-wrap">
+                    <input id="lead-10" class="checkbox" type="checkbox" />
+                    <svg class="checkbox-check" aria-hidden="true"><use href="#i-check"></use></svg>
+                    <label class="sr-only" for="lead-10">Select Jack Robinson</label>
+                  </span>
+                </td>
+                <td class="sticky-col-2"><span class="text-body-medium customer-name">Jack Robinson</span></td>
+                <td><span class="text-body-regular cell-text">Gaming Hub</span></td>
+                <td><span class="text-body-regular cell-text">jack@gaminghub.gg</span></td>
+                <td><span class="status-badge text-label-caps">OPEN</span></td>
+                <td><span class="text-body-medium manager-name">Mia Brown</span></td>
+                <td><span class="text-body-regular cell-text">X</span></td>
+                <td class="cell-score"><span class="score-badge score-good text-label-score">7/10</span></td>
+                <td><span class="text-body-regular cell-text">Dec 01, 2025</span></td>
+                <td class="cell-actions"><button class="row-action" type="button" aria-label="Open actions for Jack Robinson"><svg class="icon"><use href="#i-dots-horizontal"></use></svg></button></td>
+              </tr>
+              <tr>
+                <td class="cell-select sticky-col-1">
+                  <span class="checkbox-wrap">
+                    <input id="lead-11" class="checkbox" type="checkbox" />
+                    <svg class="checkbox-check" aria-hidden="true"><use href="#i-check"></use></svg>
+                    <label class="sr-only" for="lead-11">Select David Ramirez</label>
+                  </span>
+                </td>
+                <td class="sticky-col-2"><span class="text-body-medium customer-name">David Ramirez</span></td>
+                <td><span class="text-body-regular cell-text">IronGate Logistics</span></td>
+                <td><span class="text-body-regular cell-text">david@irongate.com</span></td>
+                <td><span class="status-badge text-label-caps">OPEN</span></td>
+                <td><span class="text-body-medium manager-name">Ella Turner</span></td>
+                <td><span class="text-body-regular cell-text">Referral</span></td>
+                <td class="cell-score"><span class="score-badge score-fair text-label-score">4/10</span></td>
+                <td><span class="text-body-regular cell-text">Dec 01, 2025</span></td>
+                <td class="cell-actions"><button class="row-action" type="button" aria-label="Open actions for David Ramirez"><svg class="icon"><use href="#i-dots-horizontal"></use></svg></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      const selectAll = document.getElementById('select-all')
+      if (selectAll) {
+        selectAll.indeterminate = true
+        selectAll.setAttribute('aria-checked', 'mixed')
+      }
+
+      const sidebar = document.getElementById('sidebar')
+      const overlay = document.getElementById('sidebar-overlay')
+      const menuToggle = document.getElementById('menu-toggle')
+
+      const setDrawer = (open) => {
+        sidebar.classList.toggle('active', open)
+        overlay.classList.toggle('active', open)
+        document.body.classList.toggle('drawer-open', open)
+        menuToggle.setAttribute('aria-expanded', String(open))
+      }
+
+      menuToggle.addEventListener('click', () => {
+        setDrawer(!sidebar.classList.contains('active'))
+      })
+
+      overlay.addEventListener('click', () => setDrawer(false))
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && sidebar.classList.contains('active')) {
+          setDrawer(false)
+        }
+      })
+
+      document.querySelectorAll('#sidebar a').forEach((link) => {
+        link.addEventListener('click', () => {
+          if (window.matchMedia('(max-width: 767px)').matches) setDrawer(false)
+        })
+      })
+
+      window.addEventListener('resize', () => {
+        if (window.innerWidth >= 768) setDrawer(false)
+      })
+    </script>
+  </body>
+</html>
