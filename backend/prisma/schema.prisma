@@ -1,0 +1,244 @@
+// Tirap Fuel Station Manager — data model (PRD §10).
+// Dev runs on SQLite so the app can be verified end to end; switch the provider
+// and DATABASE_URL to PostgreSQL for staging/production (no model changes).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  username       String    @unique
+  passwordHash   String
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  createdAt      DateTime  @default(now())
+  sessions       Session[]
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  lastSeen  DateTime @default(now())
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Setting {
+  id        Int      @id @default(1)
+  rounding  String   @default("paper")
+  marginMS  Decimal  @default(0)
+  marginHSD Decimal  @default(0)
+  lubeMargin Decimal @default(0)
+  stockLossValuation String @default("selling")
+  costMS    Decimal  @default(0)
+  costHSD   Decimal  @default(0)
+  varianceLimit Decimal @default(0)
+  maxMeterDigits Int @default(6)
+  stationName String  @default("Tirap Fuel Station")
+  updatedAt DateTime @updatedAt
+}
+
+model Rate {
+  id      String  @id @default(cuid())
+  product String
+  date    String
+  rate    Decimal
+
+  @@unique([product, date])
+}
+
+model DailyReport {
+  id              String    @id @default(cuid())
+  date            String    @unique
+  status          String    @default("open")
+  previousBalance Decimal   @default(0)
+  bankDeposit     Decimal   @default(0)
+  pos             Decimal   @default(0)
+  countedCash     Decimal   @default(0)
+  totals          String?
+  openedAt        DateTime  @default(now())
+  closedAt        DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  readings    NozzleReading[]
+  products    ProductDay[]
+  tanks       TankDay[]
+  lubeSales   LubeSale[]
+  online      OnlineReceipt[]
+
+  @@index([date])
+}
+
+model Nozzle {
+  id        String  @id @default(cuid())
+  name      String
+  product   String
+  sortOrder Int     @default(0)
+  active    Boolean @default(true)
+
+  readings NozzleReading[]
+}
+
+model NozzleReading {
+  id            String  @id @default(cuid())
+  dailyReportId String
+  nozzleId      String
+  opening       Decimal @default(0)
+  closing       Decimal @default(0)
+  rollover      Boolean @default(false)
+  replacedLitres Decimal?
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+  nozzle      Nozzle      @relation(fields: [nozzleId], references: [id])
+
+  @@unique([dailyReportId, nozzleId])
+}
+
+model ProductDay {
+  id            String  @id @default(cuid())
+  dailyReportId String
+  product       String
+  rfLitres      Decimal @default(0)
+  rfNote        String?
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+
+  @@unique([dailyReportId, product])
+}
+
+model Tank {
+  id      String @id @default(cuid())
+  name    String
+  product String
+  active  Boolean @default(true)
+
+  days     TankDay[]
+  receipts StockReceipt[]
+}
+
+model TankDay {
+  id            String  @id @default(cuid())
+  dailyReportId String
+  tankId        String
+  opening       Decimal @default(0)
+  receipts      Decimal @default(0)
+  dip           Decimal @default(0)
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+  tank        Tank        @relation(fields: [tankId], references: [id])
+
+  @@unique([dailyReportId, tankId])
+}
+
+model StockReceipt {
+  id      String  @id @default(cuid())
+  date    String
+  tankId  String
+  invoice String?
+  litres  Decimal
+  amount  Decimal @default(0)
+  createdAt DateTime @default(now())
+
+  tank Tank @relation(fields: [tankId], references: [id])
+
+  @@index([date])
+}
+
+model LubeItem {
+  id     String  @id @default(cuid())
+  name   String
+  price  Decimal @default(0)
+  active Boolean @default(true)
+
+  sales LubeSale[]
+}
+
+model LubeSale {
+  id            String  @id @default(cuid())
+  dailyReportId String
+  itemId        String?
+  itemName      String
+  quantity      Decimal @default(0)
+  price         Decimal @default(0)
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+  item        LubeItem?    @relation(fields: [itemId], references: [id])
+}
+
+model OnlineReceipt {
+  id            String  @id @default(cuid())
+  dailyReportId String
+  label         String
+  amount        Decimal @default(0)
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+}
+
+model CreditParty {
+  id             String  @id @default(cuid())
+  name           String
+  phone          String?
+  creditLimit    Decimal @default(0)
+  openingBalance Decimal @default(0)
+  active         Boolean @default(true)
+
+  transactions CreditTransaction[]
+}
+
+model CreditTransaction {
+  id        String   @id @default(cuid())
+  date      String
+  partyId   String
+  type      String
+  amount    Decimal
+  mode      String   @default("cash")
+  note      String?
+  createdAt DateTime @default(now())
+
+  party CreditParty @relation(fields: [partyId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+  @@index([partyId])
+}
+
+model ExpenseCategory {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  active Boolean @default(true)
+
+  expenses Expense[]
+}
+
+model Expense {
+  id         String   @id @default(cuid())
+  date       String
+  categoryId String
+  type       String   @default("running")
+  details    String?
+  amount     Decimal
+  createdAt  DateTime @default(now())
+
+  category ExpenseCategory @relation(fields: [categoryId], references: [id])
+
+  @@index([date])
+}
