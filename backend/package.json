@@ -10,6 +10,7 @@
     "db:push": "prisma db push",
     "db:seed": "node src/seed.js",
     "db:studio": "prisma studio",
+    "check:tc01": "node scripts/check-tc01.mjs",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
