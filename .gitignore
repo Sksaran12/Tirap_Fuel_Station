@@ -1,0 +1,13 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Backend secrets and local data
+backend/.env
+backend/prisma/*.db
+backend/prisma/*.db-journal
