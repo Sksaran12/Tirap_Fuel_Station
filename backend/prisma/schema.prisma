@@ -300,3 +300,20 @@ model Expense {
   @@index([categoryId])
   @@map("expenses")
 }
+
+// ─────────────────────────── file attachments (R2) ──────────────────────────
+
+model Document {
+  id          String   @id @default(cuid()) @db.VarChar(64)
+  key         String   @db.VarChar(500)       // R2 object key e.g. uploads/2026-11-06/<uuid>.pdf
+  filename    String   @db.VarChar(200)       // original file name shown to the user
+  contentType String   @map("content_type") @db.VarChar(100)
+  size        Int                             // file size in bytes
+  date        String?  @db.VarChar(10)        // optional YYYY-MM-DD link to a daily report
+  tag         String?  @db.VarChar(80)        // e.g. "invoice", "challan", "receipt"
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([date])
+  @@index([tag])
+  @@map("documents")
+}
