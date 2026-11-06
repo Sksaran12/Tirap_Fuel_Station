@@ -1,0 +1,630 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  Lock,
+  Plus,
+  Save,
+  Unlock,
+  X,
+} from 'lucide-react'
+import { computeDay } from '../../shared/calc'
+import { api } from '../lib/api'
+import { addDays, dateLabel, inr, litres, money, todayKey } from '../lib/format'
+import { useResource } from '../lib/useResource'
+import { useDay } from '../context/DayContext'
+import {
+  Button,
+  Card,
+  CardHeader,
+  Checkbox,
+  InlineError,
+  InlineNotice,
+  Money,
+  NumberInput,
+  Select,
+  Spinner,
+  StatusPill,
+  TextInput,
+} from '../components/ui'
+
+const rowInput = 'h-9 rounded-[8px]'
+
+function SummaryRow({ label, value, strong, tone }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-[5px]">
+      <span className={`text-[12px] ${strong ? 'font-medium text-[#0D0F14]' : 'text-[#4E525A]'}`}>
+        {label}
+      </span>
+      <Money value={value} tone={tone} className={`text-[13px] ${strong ? 'font-semibold' : 'font-medium'}`} />
+    </div>
+  )
+}
+
+export default function DailyEntry() {
+  const { date, setDate } = useDay()
+  const { data, loading, error, setData, refresh } = useResource(() => api.get(`/day/${date}`), [date])
+  const [form, setForm] = useState(null)
+  const [busy, setBusy] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [confirm, setConfirm] = useState(null)
+
+  useEffect(() => {
+    if (data?.inputs) {
+      setForm(JSON.parse(JSON.stringify(data.inputs)))
+      setActionError('')
+      setConfirm(null)
+    }
+  }, [data])
+
+  const closed = data?.status === 'closed'
+  const preview = useMemo(() => {
+    if (!form || !data) return null
+    const input = {
+      rates: form.rates,
+      rf: form.rf,
+      nozzles: {
+        MS: form.nozzles.filter((row) => row.product === 'MS'),
+        HSD: form.nozzles.filter((row) => row.product === 'HSD'),
+      },
+      tanks: data.inputs.tanks,
+      lube: form.lube,
+      online: form.online,
+      pos: form.pos,
+      bankDeposit: form.bankDeposit,
+      countedCash: form.countedCash,
+      previousBalance: data.inputs.previousBalance,
+      creditGiven: data.inputs.creditGiven,
+      creditReceived: data.inputs.creditReceived,
+      expenses: data.inputs.expenses,
+    }
+    return computeDay(input, data.settings)
+  }, [form, data])
+
+  const update = (patch) => setForm((current) => ({ ...current, ...patch }))
+  const updateNozzle = (index, patch) =>
+    setForm((current) => ({
+      ...current,
+      nozzles: current.nozzles.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)),
+    }))
+  const updateLube = (index, patch) =>
+    setForm((current) => ({
+      ...current,
+      lube: current.lube.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)),
+    }))
+  const updateOnline = (index, patch) =>
+    setForm((current) => ({
+      ...current,
+      online: current.online.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)),
+    }))
+
+  const save = async () => {
+    setBusy('save')
+    setActionError('')
+    try {
+      const payload = {
+        rates: form.rates,
+        nozzles: form.nozzles.map((row) => ({
+          nozzleId: row.nozzleId,
+          opening: Number(row.opening) || 0,
+          closing: Number(row.closing) || 0,
+          rollover: Boolean(row.rollover),
+          replacedLitres: row.replacedLitres === null || row.replacedLitres === '' ? null : Number(row.replacedLitres),
+        })),
+        rf: form.rf,
+        lube: form.lube
+          .filter((row) => row.itemName && Number(row.quantity) > 0)
+          .map((row) => ({
+            itemId: row.itemId || null,
+            itemName: row.itemName,
+            quantity: Number(row.quantity) || 0,
+            price: Number(row.price) || 0,
+          })),
+        online: form.online.filter((row) => Number(row.amount) > 0),
+        pos: Number(form.pos) || 0,
+        bankDeposit: Number(form.bankDeposit) || 0,
+        countedCash: Number(form.countedCash) || 0,
+      }
+      const next = await api.put(`/day/${date}`, payload)
+      setData(next)
+    } catch (failure) {
+      setActionError(failure.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const runAction = async (path, body) => {
+    setBusy(path)
+    setActionError('')
+    try {
+      const next = await api.post(path, body)
+      setData(next)
+      setConfirm(null)
+    } catch (failure) {
+      setActionError(failure.message)
+      setConfirm(null)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  if (loading && !data) return <Spinner label="Opening the day" />
+  if (error && !data) return <div className="p-4"><InlineError>{error}</InlineError></div>
+  if (!data || !form) return null
+
+  return (
+    <div className="px-4 pb-10 pt-4 sm:px-[19px]">
+      {/* Toolbar: date, status, actions */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1">
+          <Button variant="secondary" size="sm" aria-label="Previous day" onClick={() => setDate(addDays(date, -1))}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="relative">
+            <CalendarDays className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9BA0A6]" />
+            <input
+              type="date"
+              value={date}
+              onChange={(event) => event.target.value && setDate(event.target.value)}
+              className="h-8 rounded-[10px] border border-[#E2E4E6] bg-white pl-8 pr-2 text-[12.5px] font-medium text-[#0D0F14] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17191F]"
+              aria-label="Business date"
+            />
+          </div>
+          <Button variant="secondary" size="sm" aria-label="Next day" onClick={() => setDate(addDays(date, 1))}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          {date !== todayKey() ? (
+            <Button variant="ghost" size="sm" onClick={() => setDate(todayKey())}>
+              Today
+            </Button>
+          ) : null}
+        </div>
+
+        <StatusPill status={data.status} />
+        <span className="text-[12px] text-[#4E525A]">
+          {dateLabel(date)} · {data.status === 'closed' ? 'locked' : 'live entry'}
+        </span>
+
+        <div className="ml-auto flex items-center gap-2">
+          {closed ? (
+            <Button variant="primary" onClick={() => setConfirm('reopen')}>
+              <Unlock className="h-4 w-4" /> Reopen day
+            </Button>
+          ) : (
+            <>
+              <Button variant="secondary" onClick={save} disabled={busy === 'save'}>
+                <Save className="h-4 w-4" /> {busy === 'save' ? 'Saving…' : 'Save'}
+              </Button>
+              <Button variant="primary" onClick={() => setConfirm('close')}>
+                <Lock className="h-4 w-4" /> Close day
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {confirm ? (
+        <div className="mb-4">
+          <InlineNotice tone={confirm === 'close' ? 'warn' : 'neutral'}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                {confirm === 'close'
+                  ? 'Close this day? It becomes read-only until you reopen it, and the reopen is audited.'
+                  : 'Reopen this day for correction? Every reopen and close is written to the audit log.'}
+              </span>
+              <span className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setConfirm(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() =>
+                    confirm === 'close'
+                      ? runAction(`/day/${date}/close`)
+                      : runAction(`/day/${date}/reopen`, { note: 'Owner reopened the day' })
+                  }
+                  disabled={Boolean(busy)}
+                >
+                  {confirm === 'close' ? 'Close day' : 'Reopen day'}
+                </Button>
+              </span>
+            </div>
+          </InlineNotice>
+        </div>
+      ) : null}
+
+      {actionError ? <div className="mb-4"><InlineError>{actionError}</InlineError></div> : null}
+      {closed ? (
+        <div className="mb-4">
+          <InlineNotice>
+            This day is closed. Reopen it to correct a meter, a rate or any cash figure.
+          </InlineNotice>
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-4">
+          {/* Rates */}
+          <Card>
+            <CardHeader title="Rates of the day" subtitle="MS and HSD are priced separately; tomorrow starts from these." />
+            <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
+              {['MS', 'HSD'].map((product) => (
+                <label key={product} className="block">
+                  <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">
+                    {product} rate (₹/L)
+                  </span>
+                  <NumberInput
+                    value={form.rates[product]}
+                    onChange={(value) => update({ rates: { ...form.rates, [product]: value } })}
+                    disabled={closed}
+                    aria-label={`${product} rate`}
+                    className="text-left"
+                  />
+                </label>
+              ))}
+            </div>
+          </Card>
+
+          {/* Nozzles */}
+          <Card>
+            <CardHeader
+              title="Nozzle meters"
+              subtitle="Closing − opening = sale (F1). Opening is carried from the last closed day."
+              actions={<Pill litres={preview} />}
+            />
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] border-collapse">
+                <thead>
+                  <tr>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-4 text-left text-[12px] font-normal text-[#4E525A]">Nozzle</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Opening</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Closing</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Sale (L)</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-4 text-left text-[12px] font-normal text-[#4E525A]">Fix</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.nozzles.map((row, index) => {
+                    const computed = preview?.products?.[row.product]?.nozzles?.[
+                      form.nozzles.filter((item) => item.product === row.product).findIndex((item) => item.nozzleId === row.nozzleId)
+                    ]
+                    const below = Number(row.closing) < Number(row.opening) && row.replacedLitres === null
+                    return (
+                      <tr key={row.nozzleId} className="border-b border-[#E2E4E6]">
+                        <td className="px-4 py-1.5 text-[12.5px] font-medium text-[#0D0F14]">
+                          {row.name}
+                          <span className="ml-2 text-[10.5px] font-normal uppercase tracking-[0.06em] text-[#9BA0A6]">
+                            {row.product}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <NumberInput
+                            value={row.opening}
+                            onChange={(value) => updateNozzle(index, { opening: value })}
+                            disabled={closed}
+                            aria-label={`${row.name} opening`}
+                            className={rowInput}
+                          />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <NumberInput
+                            value={row.closing}
+                            onChange={(value) => updateNozzle(index, { closing: value })}
+                            disabled={closed}
+                            aria-label={`${row.name} closing`}
+                            className={rowInput}
+                          />
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-[12.5px] tabular-nums text-[#0D0F14]">
+                          {computed ? inr(computed.sale, 3) : '0.000'}
+                        </td>
+                        <td className="px-4 py-1.5">
+                          {below ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Checkbox
+                                checked={row.rollover}
+                                onChange={(value) => updateNozzle(index, { rollover: value })}
+                                label="Rolled over"
+                              />
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="Litres sold"
+                                aria-label={`${row.name} replaced meter litres`}
+                                disabled={closed}
+                                value={row.replacedLitres ?? ''}
+                                onChange={(event) => {
+                                  const raw = event.target.value.replace(/[^0-9.]/g, '')
+                                  updateNozzle(index, { replacedLitres: raw === '' ? null : Number(raw) })
+                                }}
+                                className="h-8 w-[92px] rounded-[8px] bg-[#F5F7F9] px-2 text-[12px] tabular-nums text-[#0D0F14] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17191F]"
+                              />
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-[#9BA0A6]">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {/* R/F */}
+          <Card>
+            <CardHeader
+              title="R/F litres"
+              subtitle="Returned to the tank. A/C sale = meter sale − R/F (F3)."
+            />
+            <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
+              {['MS', 'HSD'].map((product) => (
+                <label key={product} className="block">
+                  <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">
+                    {product} R/F (L)
+                  </span>
+                  <NumberInput
+                    value={form.rf[product]}
+                    onChange={(value) => update({ rf: { ...form.rf, [product]: value } })}
+                    disabled={closed}
+                    aria-label={`${product} R/F litres`}
+                    className="text-left"
+                  />
+                  {preview ? (
+                    <span className="mt-1 block text-[11px] text-[#9BA0A6]">
+                      A/C sale {litres(preview.products[product].acSale)} · value {money(preview.products[product].rfValue)}
+                    </span>
+                  ) : null}
+                </label>
+              ))}
+            </div>
+          </Card>
+
+          {/* Lubricants */}
+          <Card>
+            <CardHeader
+              title="Lubricants"
+              subtitle="One row per item sold today. Price is per litre or per pack."
+              actions={
+                <Button
+                  size="sm"
+                  variant="muted"
+                  disabled={closed}
+                  onClick={() =>
+                    update({ lube: [...form.lube, { itemId: null, itemName: '', quantity: 1, price: 0 }] })
+                  }
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add row
+                </Button>
+              }
+            />
+            <div className="space-y-2 p-4">
+              {form.lube.length === 0 ? (
+                <p className="text-[12px] text-[#9BA0A6]">No lubricant sales today.</p>
+              ) : null}
+              {form.lube.map((row, index) => (
+                <div key={index} className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_80px_100px_90px_32px]">
+                  <Select
+                    value={row.itemId ?? ''}
+                    disabled={closed}
+                    aria-label="Lubricant item"
+                    className="col-span-2 sm:col-span-1"
+                    onChange={(event) => {
+                      const item = data.masters.lubeItems.find((entry) => entry.id === event.target.value)
+                      updateLube(index, {
+                        itemId: item?.id ?? null,
+                        itemName: item?.name ?? '',
+                        price: item?.price ?? row.price,
+                      })
+                    }}
+                  >
+                    <option value="">Choose item…</option>
+                    {data.masters.lubeItems.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                    {row.itemId === null && row.itemName ? <option value="">{row.itemName}</option> : null}
+                  </Select>
+                  <NumberInput
+                    value={row.quantity}
+                    disabled={closed}
+                    aria-label="Quantity"
+                    placeholder="Qty"
+                    onChange={(value) => updateLube(index, { quantity: value })}
+                    className={rowInput}
+                  />
+                  <NumberInput
+                    value={row.price}
+                    disabled={closed}
+                    aria-label="Price"
+                    placeholder="Price"
+                    onChange={(value) => updateLube(index, { price: value })}
+                    className={rowInput}
+                  />
+                  <span className="flex h-9 items-center justify-end text-[12.5px] tabular-nums text-[#0D0F14]">
+                    {money((Number(row.quantity) || 0) * (Number(row.price) || 0))}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Remove lubricant row"
+                    disabled={closed}
+                    onClick={() => update({ lube: form.lube.filter((_, rowIndex) => rowIndex !== index) })}
+                    className="flex h-9 w-8 items-center justify-center text-[#9BA0A6] hover:text-[#B42318] disabled:opacity-40"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Online + POS */}
+          <Card>
+            <CardHeader
+              title="Online, POS and bank"
+              subtitle="Online lines are added to F11; POS is one figure; a bank deposit reduces cash."
+              actions={
+                <Button
+                  size="sm"
+                  variant="muted"
+                  disabled={closed}
+                  onClick={() => update({ online: [...form.online, { label: 'Online', amount: 0 }] })}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add online line
+                </Button>
+              }
+            />
+            <div className="space-y-2 p-4">
+              {form.online.map((row, index) => (
+                <div key={index} className="grid grid-cols-[minmax(0,1fr)_120px_32px] items-center gap-2">
+                  <TextInput
+                    value={row.label}
+                    disabled={closed}
+                    aria-label="Online label"
+                    placeholder="Label (e.g. UPI, Dkpr)"
+                    onChange={(event) => updateOnline(index, { label: event.target.value })}
+                    className={rowInput}
+                  />
+                  <NumberInput
+                    value={row.amount}
+                    disabled={closed}
+                    aria-label="Online amount"
+                    onChange={(value) => updateOnline(index, { amount: value })}
+                    className={rowInput}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Remove online line"
+                    disabled={closed}
+                    onClick={() => update({ online: form.online.filter((_, rowIndex) => rowIndex !== index) })}
+                    className="flex h-9 w-8 items-center justify-center text-[#9BA0A6] hover:text-[#B42318] disabled:opacity-40"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+
+              <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-3">
+                <label className="block">
+                  <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">POS</span>
+                  <NumberInput value={form.pos} disabled={closed} onChange={(value) => update({ pos: value })} />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Bank deposit</span>
+                  <NumberInput
+                    value={form.bankDeposit}
+                    disabled={closed}
+                    onChange={(value) => update({ bankDeposit: value })}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Cash counted</span>
+                  <NumberInput
+                    value={form.countedCash}
+                    disabled={closed}
+                    onChange={(value) => update({ countedCash: value })}
+                  />
+                </label>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Summary column */}
+        <div className="min-w-0 space-y-4 xl:sticky xl:top-[83px] xl:self-start">
+          <Card>
+            <CardHeader title="Day totals" subtitle="Recalculated live; the server stores the official figures." />
+            <div className="px-4 pb-3 pt-1">
+              <SummaryRow label="MS amount (F4)" value={preview?.products.MS.amount} />
+              <SummaryRow label="HSD amount (F4)" value={preview?.products.HSD.amount} />
+              <SummaryRow label="Total fuel (F7)" value={preview?.fuel.totalAmount} strong />
+              <SummaryRow label="R/F value (F5)" value={preview?.fuel.totalRfValue} />
+              <SummaryRow label="Lubricants (F6)" value={preview?.lube.total} />
+              <SummaryRow label="Expenses" value={preview?.expenses.total} />
+              <SummaryRow label="Credit given" value={preview?.cash.creditGiven} />
+              <SummaryRow label="Credit received" value={preview?.cash.creditReceived} />
+              <SummaryRow label="Online" value={preview?.cash.online} />
+              <SummaryRow label="POS" value={preview?.cash.pos} />
+              <SummaryRow label="Net cash movement (F11)" value={preview?.cash.net} strong tone={preview?.cash.net < 0 ? 'bad' : undefined} />
+              <SummaryRow label="Previous balance (F14)" value={preview?.cash.previousBalance} />
+              <SummaryRow label="Bank deposit" value={preview?.cash.bankDeposit} />
+              <div className="my-2 h-px bg-[#E2E4E6]" />
+              <SummaryRow label="Total cash (F12)" value={preview?.cash.total} strong tone={preview?.cash.total < 0 ? 'bad' : undefined} />
+              <SummaryRow
+                label="Cash difference (F13)"
+                value={preview?.cash.difference}
+                tone={Math.abs(preview?.cash.difference ?? 0) > 0.5 ? 'bad' : 'good'}
+              />
+              <SummaryRow label="R/F + cash (F16)" value={preview?.rfPlusCash} />
+              <SummaryRow label="Daily profit (F17)" value={preview?.profit.net} />
+            </div>
+            <div className="border-t border-[#E2E4E6] px-4 py-3 text-[11.5px] leading-relaxed text-[#4E525A]">
+              <div className="flex justify-between gap-2">
+                <span>MS stock variance</span>
+                <span className="tabular-nums">{preview ? `${inr(preview.products.MS.variance, 3)} L` : '—'}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span>HSD stock variance</span>
+                <span className="tabular-nums">{preview ? `${inr(preview.products.HSD.variance, 3)} L` : '—'}</span>
+              </div>
+              <div className="mt-2 flex gap-3">
+                <Link to="/stock" className="font-medium text-[#0D0F14] underline decoration-[#D2D5D9] underline-offset-2">
+                  Stock &amp; dips
+                </Link>
+                <Link to="/expenses" className="font-medium text-[#0D0F14] underline decoration-[#D2D5D9] underline-offset-2">
+                  Expenses
+                </Link>
+                <Link to="/credit" className="font-medium text-[#0D0F14] underline decoration-[#D2D5D9] underline-offset-2">
+                  Credit
+                </Link>
+              </div>
+            </div>
+          </Card>
+
+          {preview?.errors?.length ? (
+            <div className="space-y-2">
+              {preview.errors.map((message) => (
+                <InlineError key={message}>
+                  <span className="inline-flex items-start gap-1.5">
+                    <CircleAlert className="mt-[1px] h-3.5 w-3.5 shrink-0" /> {message}
+                  </span>
+                </InlineError>
+              ))}
+            </div>
+          ) : null}
+
+          {preview?.alerts?.length ? (
+            <div className="space-y-2">
+              {preview.alerts.map((message) => (
+                <InlineNotice key={message} tone="warn">
+                  {message}
+                </InlineNotice>
+              ))}
+            </div>
+          ) : null}
+
+          <p className="text-[11px] leading-relaxed text-[#9BA0A6]">
+            Closing a day locks it. Reopening is allowed only when every later day is still open, because
+            tomorrow&apos;s opening cash comes from today&apos;s total.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Pill({ litres: preview }) {
+  if (!preview) return null
+  return (
+    <span className="text-[11px] tabular-nums text-[#4E525A]">
+      {inr(preview.products.MS.meterSale, 3)} + {inr(preview.products.HSD.meterSale, 3)} L
+    </span>
+  )
+}

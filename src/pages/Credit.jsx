@@ -1,0 +1,412 @@
+import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Plus, Trash2, UserPlus } from 'lucide-react'
+import { api } from '../lib/api'
+import { dateLabel, money } from '../lib/format'
+import { useResource } from '../lib/useResource'
+import { useDay } from '../context/DayContext'
+import DateNav from '../components/DateNav'
+import {
+  Button,
+  Card,
+  CardHeader,
+  Empty,
+  InlineError,
+  InlineNotice,
+  Money,
+  NumberInput,
+  Select,
+  TextInput,
+} from '../components/ui'
+
+const cell = 'h-8 rounded-[8px]'
+
+function ageLabel(dateKey) {
+  if (!dateKey) return '—'
+  const days = Math.floor((Date.now() - new Date(`${dateKey}T00:00:00Z`).getTime()) / 86400000)
+  if (days <= 0) return 'today'
+  return `${days} day${days === 1 ? '' : 's'}`
+}
+
+export default function Credit() {
+  const { date, setDate } = useDay()
+  const { data, loading, error, refresh } = useResource(() => api.get('/credit'), [])
+  const [showParty, setShowParty] = useState(false)
+  const [partyDraft, setPartyDraft] = useState({ name: '', phone: '', creditLimit: 0, openingBalance: 0 })
+  const [txn, setTxn] = useState({ partyId: '', type: 'credit', mode: 'cash', amount: 0, note: '' })
+  const [partyFilter, setPartyFilter] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState('')
+
+  const parties = data?.parties ?? []
+  const transactions = data?.transactions ?? []
+  const totals = useMemo(() => {
+    const outstanding = parties.reduce((sum, party) => sum + Math.max(0, party.outstanding), 0)
+    const given = parties.reduce((sum, party) => sum + party.given, 0)
+    const paid = parties.reduce((sum, party) => sum + party.paid, 0)
+    return { outstanding, given, paid }
+  }, [parties])
+
+  const shown = partyFilter ? transactions.filter((row) => row.partyId === partyFilter) : transactions
+  const selectedParty = parties.find((party) => party.id === partyFilter)
+  const partyId = txn.partyId || parties[0]?.id || ''
+
+  const addParty = async (event) => {
+    event.preventDefault()
+    setBusy(true)
+    setActionError('')
+    try {
+      await api.post('/credit/parties', {
+        name: partyDraft.name,
+        phone: partyDraft.phone,
+        creditLimit: Number(partyDraft.creditLimit) || 0,
+        openingBalance: Number(partyDraft.openingBalance) || 0,
+      })
+      setPartyDraft({ name: '', phone: '', creditLimit: 0, openingBalance: 0 })
+      setShowParty(false)
+      refresh()
+    } catch (failure) {
+      setActionError(failure.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const addTransaction = async (event) => {
+    event.preventDefault()
+    setBusy(true)
+    setActionError('')
+    try {
+      await api.post('/credit/transactions', {
+        date,
+        partyId,
+        type: txn.type,
+        mode: txn.mode,
+        amount: Number(txn.amount) || 0,
+        note: txn.note,
+      })
+      setTxn((current) => ({ ...current, amount: 0, note: '' }))
+      refresh()
+    } catch (failure) {
+      setActionError(failure.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const removeTransaction = async (id) => {
+    setBusy(true)
+    setActionError('')
+    try {
+      await api.del(`/credit/transactions/${id}`)
+      refresh()
+    } catch (failure) {
+      setActionError(failure.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="px-4 pb-10 pt-4 sm:px-[19px]">
+      <div className="mb-4">
+        <DateNav date={date} onChange={setDate} label={`${dateLabel(date)} · credit ledger`}>
+          <Button variant="secondary" onClick={() => setShowParty((value) => !value)}>
+            <UserPlus className="h-4 w-4" /> {showParty ? 'Hide party form' : 'New party'}
+          </Button>
+        </DateNav>
+      </div>
+
+      {actionError ? (
+        <div className="mb-4">
+          <InlineError>{actionError}</InlineError>
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {[
+          ['Outstanding', totals.outstanding],
+          ['Credit given', totals.given],
+          ['Payments received', totals.paid],
+        ].map(([label, value]) => (
+          <Card key={label} className="px-4 py-3">
+            <span className="text-[10.5px] font-medium uppercase tracking-[0.12em] text-[#4E525A]">{label}</span>
+            <Money value={value} tone={label === 'Outstanding' && value > 0 ? 'bad' : undefined} className="mt-1.5 block text-[19px] font-semibold" />
+          </Card>
+        ))}
+      </div>
+
+      {showParty ? (
+        <Card className="mt-4">
+          <CardHeader title="New credit party" subtitle="A transport company, a fleet or a regular customer." />
+          <form onSubmit={addParty} className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
+            <label className="block lg:col-span-2">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Name</span>
+              <TextInput
+                value={partyDraft.name}
+                required
+                maxLength={80}
+                placeholder="e.g. Arun Transport"
+                onChange={(event) => setPartyDraft({ ...partyDraft, name: event.target.value })}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Phone</span>
+              <TextInput
+                value={partyDraft.phone}
+                maxLength={20}
+                inputMode="tel"
+                onChange={(event) => setPartyDraft({ ...partyDraft, phone: event.target.value })}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Credit limit</span>
+              <NumberInput
+                value={partyDraft.creditLimit}
+                onChange={(value) => setPartyDraft({ ...partyDraft, creditLimit: value })}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Opening balance</span>
+              <NumberInput
+                value={partyDraft.openingBalance}
+                onChange={(value) => setPartyDraft({ ...partyDraft, openingBalance: value })}
+              />
+            </label>
+            <div className="sm:col-span-2 lg:col-span-5">
+              <Button type="submit" variant="primary" disabled={busy || !partyDraft.name.trim()}>
+                <Plus className="h-4 w-4" /> {busy ? 'Saving…' : 'Save party'}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      ) : null}
+
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="min-w-0">
+          <CardHeader title="Party balances" subtitle="Outstanding = opening balance + credit given − payments received." />
+          {loading && !data ? (
+            <Empty>Loading parties…</Empty>
+          ) : parties.length === 0 ? (
+            <Empty>No credit parties yet. Add the first one above.</Empty>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] border-collapse">
+                <thead>
+                  <tr>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-4 text-left text-[12px] font-normal text-[#4E525A]">Party</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Given</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Paid</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Outstanding</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Limit</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-4 text-left text-[12px] font-normal text-[#4E525A]">Oldest credit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parties.map((party) => {
+                    const overLimit = party.creditLimit > 0 && party.outstanding > party.creditLimit
+                    return (
+                      <tr
+                        key={party.id}
+                        className={`border-b border-[#E2E4E6] hover:bg-[#F5F7F9] ${partyFilter === party.id ? 'bg-[#F5F7F9]' : ''}`}
+                      >
+                        <td className="px-4 py-2">
+                          <button
+                            type="button"
+                            onClick={() => setPartyFilter(partyFilter === party.id ? '' : party.id)}
+                            className="text-left"
+                          >
+                            <span className="block text-[12.5px] font-medium text-[#0D0F14]">{party.name}</span>
+                            <span className="block text-[10.5px] text-[#9BA0A6]">
+                              {party.phone || 'no phone'} · {partyFilter === party.id ? 'showing statement' : 'tap for statement'}
+                            </span>
+                          </button>
+                        </td>
+                        <td className="px-3 py-2 text-right text-[12.5px] tabular-nums text-[#4E525A]">{money(party.given)}</td>
+                        <td className="px-3 py-2 text-right text-[12.5px] tabular-nums text-[#4E525A]">{money(party.paid)}</td>
+                        <td className="px-3 py-2 text-right">
+                          <Money value={party.outstanding} tone={overLimit ? 'bad' : party.outstanding > 0 ? 'bad' : 'good'} className="text-[12.5px] font-semibold" />
+                          {overLimit ? <span className="ml-1 text-[10px] font-medium uppercase text-[#B42318]">over</span> : null}
+                        </td>
+                        <td className="px-3 py-2 text-right text-[12.5px] tabular-nums text-[#4E525A]">
+                          {party.creditLimit > 0 ? money(party.creditLimit) : '—'}
+                        </td>
+                        <td className="px-4 py-2 text-[12px] text-[#4E525A]">
+                          {party.oldestCreditDate ? `${dateLabel(party.oldestCreditDate)} · ${ageLabel(party.oldestCreditDate)}` : '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="border-t border-[#E2E4E6] px-4 py-2.5 text-[11px] leading-relaxed text-[#4E525A]">
+            Credit given and cash payments on a date feed the F11 cash chain automatically — no re-entry in the daily sheet.
+          </div>
+        </Card>
+
+        <Card className="xl:sticky xl:top-[83px] xl:self-start">
+          <CardHeader
+            title={selectedParty ? `Statement · ${selectedParty.name}` : 'Credit or payment'}
+            subtitle={selectedParty ? 'Entries for this party only.' : `Dated ${dateLabel(date)}.`}
+          />
+          <form onSubmit={addTransaction} className="space-y-3 p-4">
+            <label className="block">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Party</span>
+              <Select value={partyId} onChange={(event) => setTxn({ ...txn, partyId: event.target.value })} required>
+                <option value="">Choose party…</option>
+                {parties.map((party) => (
+                  <option key={party.id} value={party.id}>
+                    {party.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ['credit', 'Credit given'],
+                ['payment', 'Payment in'],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setTxn({ ...txn, type: value })}
+                  className={`h-[38px] rounded-[10px] border text-[12.5px] font-medium transition-colors ${
+                    txn.type === value
+                      ? 'border-[#17191F] bg-[#17191F] text-white'
+                      : 'border-[#E2E4E6] bg-white text-[#4E525A] hover:bg-[#F5F7F9]'
+                  }`}
+                  aria-pressed={txn.type === value}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <label className="block">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Mode</span>
+              <Select value={txn.mode} onChange={(event) => setTxn({ ...txn, mode: event.target.value })}>
+                <option value="cash">Cash</option>
+                <option value="online">Online / bank</option>
+              </Select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Amount (₹)</span>
+              <NumberInput value={txn.amount} onChange={(value) => setTxn({ ...txn, amount: value })} />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Note</span>
+              <TextInput
+                value={txn.note}
+                maxLength={160}
+                placeholder="Vehicle number, invoice…"
+                onChange={(event) => setTxn({ ...txn, note: event.target.value })}
+              />
+            </label>
+
+            <Button type="submit" variant="primary" className="w-full" disabled={busy || !partyId || !(Number(txn.amount) > 0)}>
+              <Plus className="h-4 w-4" /> {busy ? 'Saving…' : txn.type === 'credit' ? 'Add credit' : 'Add payment'}
+            </Button>
+            <p className="text-[11px] leading-relaxed text-[#9BA0A6]">
+              Only cash payments increase today&apos;s cash box; online payments settle the party account without touching
+              cash.
+            </p>
+          </form>
+        </Card>
+      </div>
+
+      <Card className="mt-4">
+        <CardHeader
+          title={selectedParty ? `Transactions · ${selectedParty.name}` : 'Recent credit transactions'}
+          subtitle="Newest first, 300 entries."
+          actions={
+            partyFilter ? (
+              <Button size="sm" variant="muted" onClick={() => setPartyFilter('')}>
+                Clear filter
+              </Button>
+            ) : null
+          }
+        />
+        {shown.length === 0 ? (
+          <Empty>No credit entries yet for {selectedParty ? selectedParty.name : 'the station'}.</Empty>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] border-collapse">
+              <thead>
+                <tr>
+                  <th className="h-[33px] border-b border-[#E2E4E6] px-4 text-left text-[12px] font-normal text-[#4E525A]">Date</th>
+                  <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-left text-[12px] font-normal text-[#4E525A]">Party</th>
+                  <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-left text-[12px] font-normal text-[#4E525A]">Type</th>
+                  <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-left text-[12px] font-normal text-[#4E525A]">Mode</th>
+                  <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-left text-[12px] font-normal text-[#4E525A]">Note</th>
+                  <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Amount</th>
+                  <th className="h-[33px] w-12 border-b border-[#E2E4E6] px-2 text-right text-[12px] font-normal text-[#4E525A]" />
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((row) => (
+                  <tr key={row.id} className="border-b border-[#E2E4E6]">
+                    <td className="px-4 py-2 text-[12.5px] tabular-nums text-[#4E525A]">{dateLabel(row.date)}</td>
+                    <td className="px-3 py-2 text-[12.5px] font-medium text-[#0D0F14]">{row.partyName}</td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`inline-flex h-[23px] items-center rounded-[7px] px-2 text-[10.5px] font-medium uppercase tracking-[0.5px] ${
+                          row.type === 'credit' ? 'bg-[#FDE8E5] text-[#B42318]' : 'bg-[#E2F4E6] text-[#147A3A]'
+                        }`}
+                      >
+                        {row.type === 'credit' ? 'Credit' : 'Payment'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-[12px] capitalize text-[#4E525A]">{row.mode}</td>
+                    <td className="px-3 py-2 text-[12.5px] text-[#4E525A]">{row.note || <span className="text-[#9BA0A6]">—</span>}</td>
+                    <td className="px-3 py-2 text-right">
+                      <Money
+                        value={row.amount}
+                        tone={row.type === 'credit' ? 'bad' : 'good'}
+                        className="text-[12.5px] font-medium"
+                      />
+                    </td>
+                    <td className="px-2 py-1.5 text-right">
+                      {row.date === date ? (
+                        <button
+                          type="button"
+                          aria-label="Delete credit entry"
+                          disabled={busy}
+                          onClick={() => removeTransaction(row.id)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#9BA0A6] hover:bg-[#FDE8E5] hover:text-[#B42318] disabled:opacity-40"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <span className="text-[10.5px] text-[#9BA0A6]" title={`Open ${row.date} to delete`}>
+                          —
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="border-t border-[#E2E4E6] px-4 py-2.5 text-[11px] leading-relaxed text-[#4E525A]">
+          Entries can only be deleted on an open day — select that date above, then delete. Closed days stay immutable.{' '}
+          <Link to="/daily-entry" className="font-medium underline decoration-[#D2D5D9] underline-offset-2">
+            Open daily entry
+          </Link>
+        </div>
+      </Card>
+
+      {error ? <div className="mt-4"><InlineError>{error}</InlineError></div> : null}
+      {parties.length === 0 ? (
+        <div className="mt-4">
+          <InlineNotice>Credit is optional at this station — leave it empty if all sales are cash.</InlineNotice>
+        </div>
+      ) : null}
+    </div>
+  )
+}
