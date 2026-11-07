@@ -16,10 +16,10 @@ import { useDay } from '../context/DayContext'
 import DateNav from '../components/DateNav'
 import { Button, Card, CardHeader, Empty, InlineError, InlineNotice, Money, Spinner, StatusPill, TableScroll, Td, Th } from '../components/ui'
 
-function Kpi({ icon: Icon, label, value, hint, tone }) {
+function Kpi({ icon: Icon, label, value, hint, tone, delay = 0 }) {
   const color = tone === 'bad' ? 'text-[#B42318]' : tone === 'good' ? 'text-[#147A3A]' : 'text-[#0D0F14]'
   return (
-    <Card className="px-4 py-3">
+    <Card className="animate-rise px-4 py-3 transition-shadow duration-200 hover:shadow-[0_2px_10px_rgba(13,15,20,0.06)]" style={{ animationDelay: `${delay}ms` }}>
       <div className="flex items-start justify-between gap-2">
         <span className="text-[10.5px] font-medium uppercase tracking-[0.12em] text-[#4E525A]">{label}</span>
         <Icon className="h-4 w-4 shrink-0 text-[#9BA0A6]" strokeWidth={1.75} />
@@ -51,12 +51,12 @@ export default function Dashboard() {
 
   return (
     <div className="px-4 pb-10 pt-4 sm:px-[19px]">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="animate-rise mb-4 flex flex-wrap items-center justify-between gap-3">
         <DateNav date={date} onChange={setDate} label={`${weekdayLabel(date)} · ${open ? 'open for entry' : 'closed'}`} />
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill status={status} />
           <Link to="/daily-entry">
-            <Button variant={open ? 'primary' : 'secondary'} size="md">
+            <Button variant={open ? 'primary' : 'secondary'} size="md" className="btn-shine">
               <ClipboardPenLine className="h-4 w-4" />
               {open ? 'Continue daily entry' : 'Open the daily entry'}
             </Button>
@@ -76,40 +76,40 @@ export default function Dashboard() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-        <Kpi
+      <div className="animate-rise grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6" style={{ animationDelay: '80ms' }}>
+        <Kpi delay={0}
           icon={IndianRupee}
           label="Fuel sale (F7)"
           value={money(computed.fuel.totalAmount)}
           hint={`${litres(computed.products.MS.acSale)} + ${litres(computed.products.HSD.acSale)}`}
         />
-        <Kpi
+        <Kpi delay={60}
           icon={Wallet}
           label="Total cash (F12)"
           value={money(computed.cash.total)}
           tone={computed.cash.total < 0 ? 'bad' : undefined}
           hint={computed.cash.difference === 0 ? 'cash tallies' : `difference ${money(computed.cash.difference)}`}
         />
-        <Kpi
+        <Kpi delay={120}
           icon={TrendingUp}
           label="Daily profit (F17)"
           value={profitKnown ? money(computed.profit.net) : '—'}
           hint={profitKnown ? 'margins from settings' : 'set margins in Settings'}
         />
-        <Kpi
+        <Kpi delay={180}
           icon={Users}
           label="Credit dues"
           value={money(dues)}
           hint={`${partiesWithDues.length} party(s) outstanding`}
         />
-        <Kpi
+        <Kpi delay={240}
           icon={Droplets}
           label="Stock variance"
           value={`${inr(variance, 3)} L`}
           tone={Math.abs(variance) > 0.5 ? 'bad' : 'good'}
           hint="dip − closing book stock"
         />
-        <Kpi
+        <Kpi delay={300}
           icon={ClipboardPenLine}
           label="R/F + cash (F16)"
           value={money(computed.rfPlusCash)}
@@ -133,7 +133,7 @@ export default function Dashboard() {
         </div>
       ) : null}
 
-      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="animate-rise mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]" style={{ animationDelay: '140ms' }}>
         <Card>
           <CardHeader
             title="Last 10 days"

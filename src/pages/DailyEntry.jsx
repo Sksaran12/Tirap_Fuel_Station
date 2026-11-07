@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { computeDay } from '../../shared/calc'
 import { api } from '../lib/api'
+import { toast } from 'react-toastify'
 import { addDays, dateLabel, inr, litres, money, todayKey } from '../lib/format'
 import { useResource } from '../lib/useResource'
 import { useDay } from '../context/DayContext'
@@ -60,9 +61,12 @@ export default function DailyEntry() {
       const res = await api.get(`/uploads/day/${date}/url`)
       if (res?.url) {
         window.open(res.url, '_blank')
+        toast.success(`Register sheet for ${dateLabel(date)} is downloading.`)
+      } else {
+        toast.warn('No archived file found for this day yet. Click Save to create one.')
       }
     } catch (err) {
-      alert(err.message || 'No archived file found for this day yet. Click Save to create one!')
+      toast.error(err.message || 'No archived file found for this day yet. Click Save to create one!')
     } finally {
       setDownloading(false)
     }
@@ -159,8 +163,10 @@ export default function DailyEntry() {
     try {
       const next = await api.put(`/day/${date}`, buildPayload())
       setData(next)
+      toast.success(`Day ${dateLabel(date)} saved.`)
     } catch (failure) {
       setActionError(failure.message)
+      toast.error(failure.message)
     } finally {
       setBusy('')
     }
@@ -179,8 +185,10 @@ export default function DailyEntry() {
       const next = await api.post(`/day/${date}/close`)
       setData(next)
       setConfirm(null)
+      toast.success(`Day ${dateLabel(date)} saved & closed. The register is now locked.`)
     } catch (failure) {
       setActionError(failure.message)
+      toast.error(failure.message)
       setConfirm(null)
     } finally {
       setBusy('')
@@ -194,8 +202,10 @@ export default function DailyEntry() {
       const next = await api.post(path, body)
       setData(next)
       setConfirm(null)
+      if (path.endsWith('/reopen')) toast.success(`Day ${dateLabel(date)} reopened. It can be edited again.`)
     } catch (failure) {
       setActionError(failure.message)
+      toast.error(failure.message)
       setConfirm(null)
     } finally {
       setBusy('')

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Save, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
+import { toast } from 'react-toastify'
 import { dateLabel, inr, money } from '../lib/format'
 import { useResource } from '../lib/useResource'
 import { useDay } from '../context/DayContext'
@@ -127,8 +128,10 @@ export default function Stock() {
       const next = await api.put(`/stock/${date}`, payload)
       setData(next)
       setSaved(true)
+      toast.success(`Stock for ${dateLabel(date)} saved. Day totals updated.`)
     } catch (failure) {
       setActionError(failure.message)
+      toast.error(failure.message)
     } finally {
       setBusy(false)
     }

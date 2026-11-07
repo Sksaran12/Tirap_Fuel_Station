@@ -86,7 +86,7 @@ export default function Login() {
       <div className="relative mx-auto grid min-h-[100dvh] w-full max-w-[1500px] lg:grid-cols-[1.02fr_.98fr]">
         {/* Brand story — stacks above the card on phones. */}
         <aside className="flex flex-col justify-between gap-8 px-5 pb-2 pt-6 sm:px-8 sm:pb-4 sm:pt-10 lg:px-14 lg:py-12">
-          <div>
+          <div className="animate-rise">
             <div className="flex items-center gap-3">
               <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-inset ring-white/15 backdrop-blur">
                 <BpclMark className="h-8 w-8" />
@@ -101,7 +101,7 @@ export default function Login() {
               </span>
             </div>
 
-            <div className="mt-6 sm:mt-12 lg:mt-24">
+            <div className="mt-6 sm:mt-12 lg:mt-24" style={{ animationDelay: '90ms' }}>
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-300 backdrop-blur">
                 <ShieldCheck className="h-3.5 w-3.5 text-[#F5B301]" strokeWidth={2} aria-hidden="true" />
                 Owner access only
@@ -125,8 +125,12 @@ export default function Login() {
               </p>
 
               <ul className="mt-8 hidden space-y-4 sm:block">
-                {FEATURES.map(({ icon: Icon, title, body }) => (
-                  <li key={title} className="flex max-w-[430px] items-start gap-3">
+                {FEATURES.map(({ icon: Icon, title, body }, index) => (
+                  <li
+                    key={title}
+                    className="animate-rise flex max-w-[430px] items-start gap-3 transition-transform duration-200 hover:translate-x-1"
+                    style={{ animationDelay: `${140 + index * 110}ms` }}
+                  >
                     <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300">
                       <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                     </span>
@@ -153,133 +157,76 @@ export default function Login() {
         {/* The boxed sign-in card. */}
         <section className="flex flex-col justify-center px-4 pb-8 pt-3 sm:px-8 sm:pb-12 lg:px-12 lg:py-12">
           <div className="mx-auto w-full max-w-[440px]">
-            <div className="rounded-2xl border border-white/60 bg-white p-5 text-[#0D0F14] shadow-2xl shadow-black/30 sm:p-8">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                    Secure sign in
-                  </p>
-                  <h2 className="mt-1.5 text-[24px] font-semibold leading-tight tracking-[-0.025em] text-slate-950 sm:text-[26px]">
-                    Welcome back
-                  </h2>
-                </div>
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/15">
-                  <ShieldCheck className="h-3 w-3" strokeWidth={2} aria-hidden="true" />
-                  Owner
-                </span>
-              </div>
-
-              <p className="mt-2 text-[12.5px] leading-relaxed text-slate-500">
-                Use the owner account to open today&apos;s register.
-              </p>
-
-              <form onSubmit={submit} className="mt-6 space-y-4">
-                <div>
-                  <label
-                    htmlFor="username"
-                    className="mb-1.5 block text-[12px] font-medium text-slate-700"
-                  >
-                    Username
-                  </label>
-                  <div className="relative">
-                    <UserRound
-                      className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400"
-                      strokeWidth={1.75}
-                      aria-hidden="true"
-                    />
-                    <input
-                      id="username"
-                      name="username"
-                      autoComplete="username"
-                      value={username}
-                      onChange={(event) => setUsername(event.target.value)}
-                      disabled={busy}
-                      required
-                      className="h-12 w-full rounded-xl border border-neutral-200 bg-neutral-50 pl-11 pr-4 text-[16px] text-slate-900 transition-colors placeholder:text-slate-400 focus:border-slate-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-slate-900/10 disabled:opacity-60 sm:text-[14px]"
-                    />
+            <div className="animate-pop overflow-hidden rounded-2xl bg-white text-[#0D0F14] shadow-2xl shadow-black/30 ring-1 ring-white/60" style={{ animationDelay: '60ms' }}>
+              {/* Accent hairline — the card "opens" with a yellow brand bar. */}
+              <div className="h-1.5 w-full bg-gradient-to-r from-[#F5B301] via-[#0B3C8C] to-[#F5B301]" aria-hidden="true" />
+              <div className="p-5 sm:p-8" style={{ paddingTop: '1.25rem' }}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      Secure sign in
+                    </p>
+                    <h2 className="mt-1.5 text-[24px] font-semibold leading-tight tracking-[-0.025em] text-slate-950 sm:text-[26px]">
+                      Welcome back
+                    </h2>
                   </div>
+                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/15">
+                    <ShieldCheck className="h-3 w-3" strokeWidth={2} aria-hidden="true" />
+                    Owner
+                  </span>
                 </div>
 
-                <div>
-                  <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                    <label htmlFor="password" className="block text-[12px] font-medium text-slate-700">
-                      Password
+                <p className="mt-2 text-[12.5px] leading-relaxed text-slate-500">
+                  Use the owner account to open today&apos;s register.
+                </p>
+
+                <form onSubmit={submit} className="mt-6 space-y-4">
+                  <div>
+                    <label htmlFor="username" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                      Username
                     </label>
-                    <span className="text-[10.5px] text-slate-400">Case sensitive</span>
+                    <div className="relative">
+                      <UserRound className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" strokeWidth={1.75} aria-hidden="true" />
+                      <input id="username" name="username" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} disabled={busy} required className="h-12 w-full rounded-xl border border-neutral-200 bg-neutral-50 pl-11 pr-4 text-[16px] text-slate-900 transition-all placeholder:text-slate-400 focus:border-slate-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-slate-900/10 disabled:opacity-60 sm:text-[14px]" />
+                    </div>
                   </div>
-                  <div className="relative">
-                    <LockKeyhole
-                      className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400"
-                      strokeWidth={1.75}
-                      aria-hidden="true"
-                    />
-                    <input
-                      id="password"
-                      name="password"
-                      type={showPassword ? 'text' : 'password'}
-                      autoComplete="current-password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      disabled={busy}
-                      required
-                      className="h-12 w-full rounded-xl border border-neutral-200 bg-neutral-50 pl-11 pr-14 text-[16px] text-slate-900 transition-colors placeholder:text-slate-400 focus:border-slate-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-slate-900/10 disabled:opacity-60 sm:text-[14px]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((visible) => !visible)}
-                      disabled={busy}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      aria-pressed={showPassword}
-                      className="absolute right-0.5 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30 disabled:opacity-50"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden="true" />
-                      ) : (
-                        <Eye className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden="true" />
-                      )}
-                    </button>
+
+                  <div>
+                    <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                      <label htmlFor="password" className="block text-[12px] font-medium text-slate-700">Password</label>
+                      <span className="text-[10.5px] text-slate-400">Case sensitive</span>
+                    </div>
+                    <div className="relative">
+                      <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" strokeWidth={1.75} aria-hidden="true" />
+                      <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={busy} required className="h-12 w-full rounded-xl border border-neutral-200 bg-neutral-50 pl-11 pr-14 text-[16px] text-slate-900 transition-all placeholder:text-slate-400 focus:border-slate-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-slate-900/10 disabled:opacity-60 sm:text-[14px]" />
+                      <button type="button" onClick={() => setShowPassword((visible) => !visible)} disabled={busy} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} className="absolute right-0.5 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/30 disabled:opacity-50">
+                        {showPassword ? <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden="true" /> : <Eye className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden="true" />}
+                      </button>
+                    </div>
                   </div>
+
+                  {error ? (
+                    <div role="alert" className="animate-pop flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-[12px] leading-snug text-red-700">
+                      <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} aria-hidden="true" />
+                      <span>{error}</span>
+                    </div>
+                  ) : null}
+
+                  <button type="submit" disabled={busy || !password} className="btn-shine group inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-[14px] font-semibold text-white shadow-lg shadow-slate-950/20 transition-all hover:bg-slate-800 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-900/25 disabled:cursor-not-allowed disabled:opacity-60">
+                    {busy ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} aria-hidden="true" />Signing in…</>
+                    ) : (
+                      <>Sign in<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={2} aria-hidden="true" /></>
+                    )}
+                  </button>
+                </form>
+
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4 text-[10.5px] text-slate-400">
+                  <span className="inline-flex items-center gap-1.5">
+                    <LockKeyhole className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />30-min idle timeout
+                  </span>
+                  <span>5 tries · 15-min lockout</span>
                 </div>
-
-                {error ? (
-                  <div
-                    role="alert"
-                    className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-[12px] leading-snug text-red-700"
-                  >
-                    <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} aria-hidden="true" />
-                    <span>{error}</span>
-                  </div>
-                ) : null}
-
-                <button
-                  type="submit"
-                  disabled={busy || !password}
-                  className="group inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-[14px] font-semibold text-white shadow-lg shadow-slate-950/20 transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-900/25 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {busy ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} aria-hidden="true" />
-                      Signing in…
-                    </>
-                  ) : (
-                    <>
-                      Sign in
-                      <ArrowRight
-                        className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
-                        strokeWidth={2}
-                        aria-hidden="true"
-                      />
-                    </>
-                  )}
-                </button>
-              </form>
-
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4 text-[10.5px] text-slate-400">
-                <span className="inline-flex items-center gap-1.5">
-                  <LockKeyhole className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
-                  30-min idle timeout
-                </span>
-                <span>5 tries · 15-min lockout</span>
               </div>
             </div>
 
