@@ -242,20 +242,47 @@ export async function computedFor(report, client = prisma) {
   return { computed: computeDay(input, shape), settings: shape, settingRow: row, input }
 }
 
-const dayPayload = async (report) => {
-  const { computed, settings, input } = await computedFor(report)
-  const [nozzles, tanks, lubeItems, parties, categories, previous, later] = await Promise.all([
+let cachedMasters = null
+let mastersTimestamp = 0
+const MASTER_CACHE_TTL = 30000 // 30 seconds
+
+async function getCachedMasters() {
+  const now = Date.now()
+  if (cachedMasters && now - mastersTimestamp < MASTER_CACHE_TTL) {
+    return cachedMasters
+  }
+  const [nozzles, tanks, lubeItems, parties, categories] = await Promise.all([
     prisma.nozzle.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
     prisma.tank.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
     prisma.lubeItem.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
     prisma.creditParty.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
     prisma.expenseCategory.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
-    prisma.dailyReport.findFirst({ where: { date: { lt: report.date } }, orderBy: { date: 'desc' } }),
-    prisma.dailyReport.findFirst({ where: { date: { gt: report.date }, status: 'closed' }, orderBy: { date: 'asc' } }),
   ])
+  cachedMasters = {
+    nozzles,
+    tanks,
+    lubeItems: lubeItems.map((row) => ({ ...row, price: num(row.price) })),
+    parties: parties.map((row) => ({
+      ...row,
+      creditLimit: num(row.creditLimit),
+      openingBalance: num(row.openingBalance),
+    })),
+    categories,
+  }
+  mastersTimestamp = now
+  return cachedMasters
+}
 
-  const readings = await prisma.nozzleReading.findMany({ where: { dailyReportId: report.id } })
-  const productDays = await prisma.productDay.findMany({ where: { dailyReportId: report.id } })
+const dayPayload = async (report) => {
+  const { computed, settings, input } = await computedFor(report)
+  const [masters, previous, later, readings, productDays] = await Promise.all([
+    getCachedMasters(),
+    prisma.dailyReport.findFirst({ where: { date: { lt: report.date } }, orderBy: { date: 'desc' }, select: { date: true, status: true } }),
+    prisma.dailyReport.findFirst({ where: { date: { gt: report.date }, status: 'closed' }, orderBy: { date: 'asc' }, select: { date: true } }),
+    prisma.nozzleReading.findMany({ where: { dailyReportId: report.id } }),
+    prisma.productDay.findMany({ where: { dailyReportId: report.id } }),
+  ])
+  const { nozzles, tanks, lubeItems, parties, categories } = masters
 
   return {
     date: report.date,
