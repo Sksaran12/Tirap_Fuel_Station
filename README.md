@@ -83,6 +83,9 @@ serves `dist/` when it exists.
 | `npm run db:push` | `backend/` | Apply the Prisma schema |
 | `npm run db:seed` | `backend/` | Create the owner and master data (idempotent) |
 | `npm run db:studio` | `backend/` | Open Prisma Studio to inspect the database |
+| `npm run check:tc01` | `backend/` | Recompute TC-01 from the live database and compare |
+| `npm run check:r2` | `backend/` | Verify R2 credentials, bucket and CORS preflight |
+| `npm run uploads:cleanup` | `backend/` | Delete `pending` uploads older than 24 hours |
 | `npm test` | `backend/` | TC-01 and calculation-engine tests |
 
 ## Environment
@@ -200,7 +203,251 @@ values arrive as `Decimal` objects and are converted with `num()` only at the
 response boundary. Calculated totals are stored as JSONB in
 `daily_reports.totals`.
 
+## File uploads (Cloudflare R2)
+
+Uploads are optional. Files never pass through the Node process:
+
+1. `POST /api/uploads/presign` validates the request, **creates a `pending`
+   `documents` row with a server-generated key**, and returns a 5-minute signed
+   `PUT` URL.
+2. The browser sends the bytes straight to R2 with the same `Content-Type`.
+3. `POST /api/uploads/confirm` (body: `{ id }`) calls `HeadObject`, checks the
+   real size, type and magic bytes, then flips the row to `ready`.
+
+`pending` rows mean "the browser asked but never proved it uploaded". They are
+invisible to `GET /api/uploads` and are removed after 24 hours:
+`npm run uploads:cleanup` (add `--dry-run` to inspect).
+
+Set these in `backend/.env` (or the Render dashboard). Never prefix them with
+`VITE_` — those variables are compiled into the public bundle.
+
+```dotenv
+CF_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=tirap-docs
+```
+
+`npm run check:r2` verifies the variables, the bucket and the browser CORS
+preflight in one shot. Without all four variables the upload routes return
+`503` instead of signing a URL against `undefined`.
+
+The bucket must stay **private**. The browser talks to a different origin, so
+the bucket needs a CORS policy that allows `PUT` from `APP_ORIGIN`; see
+`infra/r2/README.md` and apply it with `npm run r2:cors`.
+
+Use on Render:
+
+| Setting | Value |
+| --- | --- |
+| Cleanup job (optional) | `node backend/scripts/cleanup-uploads.mjs` |
+| Disk | none — R2 replaces it |
+
+The cleanup script loads `backend/.env` itself, so it works from the repo root as
+written. Render cron jobs need a paid instance type; on the free plan run it
+manually (or from any external scheduler). It is housekeeping only — it deletes
+`pending` rows that were never confirmed, and the app never depends on it.
+
+## Deploy: Render + Supabase
+
+```text
+Browser ──HTTPS──► Render web service (node backend/src/index.js)
+                     │  serves dist/ and /api on the same origin
+                     ├──► Supabase Postgres (shared pooler, session mode, :5432)
+                     └──► Cloudflare R2 (presigned PUT/GET, private bucket)
+```
+
+One Render web service serves both the API and the built app, so the session
+cookie, CORS and CSV downloads all stay same-origin. The database is **not** on
+Render. `render.yaml` in the repo root is a Blueprint for exactly this shape.
+
+### 1. Create the Supabase database
+
+1. Create a project at <https://supabase.com/dashboard>. Choose the region
+   closest to your Render region (India → `ap-southeast-1` / Singapore).
+2. Wait for provisioning, then open **Connect**.
+3. Copy the **Session pooler** string. It looks like:
+
+```text
+postgresql://postgres.<PROJECT-REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:5432/postgres
+```
+
+4. Append the Prisma query parameters:
+
+```text
+.../postgres?schema=public&sslmode=require
+```
+
+> **Do not use the direct host** `db.<PROJECT-REF>.supabase.co`. It resolves to
+> IPv6 only, and Render has no outbound IPv6, so the connection times out even
+> with correct credentials. The shared pooler is IPv4 and works on every plan.
+>
+> The pooler host tells you the project's region (`aws-0-ap-northeast-1` = Tokyo).
+> Pick the closest Render region:
+
+| Supabase pooler region | Render region |
+| --- | --- |
+| `ap-northeast-1`, `ap-southeast-1`, `ap-southeast-2` | `singapore` |
+| `us-east-1`, `us-east-2` | `virginia` or `ohio` |
+| `us-west-1`, `us-west-2` | `oregon` |
+| `eu-central-1`, `eu-west-1`, `eu-west-2` | `frankfurt` |
+>
+> Session mode (5432) is right for this app: one long-lived Express process,
+> prepared statements stay enabled, and `prisma db push` works through it.
+> Transaction mode (6543) would need `?pgbouncer=true&connection_limit=1` and a
+> separate `DIRECT_URL` for the CLI. Only switch if you autoscale.
+
+### 2. Verify it locally first
+
+Put the Supabase string in `backend/.env` as `DATABASE_URL`, then:
+
+```powershell
+cd backend
+npx prisma db push
+npm run db:seed
+npm run check:tc01
+```
+
+`db push` creates the tables in Supabase. `db:seed` creates the owner account
+and the nozzle/tank/lube masters. `check:tc01` proves the server-side
+calculations run against the real database.
+
+If the password contains `@ : / ? # %` or a space, URL-encode it
+(`@` → `%40`, `#` → `%23`, `%` → `%25`).
+
+### 3. Create the Render service
+
+**Blueprint (recommended):** push the repo, then in Render choose
+**New → Blueprint**, select the repo, and Render reads `render.yaml`.
+It asks for the `sync: false` values.
+
+**Manual:** New → Web Service, then:
+
+| Setting | Value |
+| --- | --- |
+| Runtime | Node |
+| Region | same continent as Supabase (India → Singapore) |
+| Build command | `npm ci && cd backend && npm ci && npx prisma generate && cd .. && npm run build` |
+| Start command | `node backend/src/index.js` |
+| Health check path | `/api/health` |
+| Disk | none (R2 replaces it) |
+
+Environment variables:
+
+| Key | Value |
+| --- | --- |
+| `NODE_VERSION` | `22.23.2` |
+| `NODE_ENV` | `production` |
+| `DATABASE_URL` | the Supabase **session pooler** string |
+| `APP_ORIGIN` | `https://<service>.onrender.com` (or the custom domain), no trailing slash |
+| `SESSION_COOKIE` | `tirap_session` |
+| `OWNER_USERNAME` | `owner` |
+| `OWNER_PASSWORD` | a strong password — not `tirap12345` |
+| `CF_ACCOUNT_ID` / `R2_*` | optional, for uploads |
+
+Never put any of these in a `VITE_*` variable; those are compiled into the
+public bundle.
+
+### 4. First deploy
+
+The first deploy starts the API but the Supabase tables may not exist yet.
+Open **Render → your service → Shell** and run once:
+
+```bash
+cd backend
+npx prisma db push
+npm run db:seed
+```
+
+Then reload `https://<service>.onrender.com/api/health`:
+
+```json
+{ "ok": true, "service": "tirap-api",
+  "db": { "engine": "PostgreSQL", "status": "connected", "latencyMs": 42 } }
+```
+
+Open the site, sign in with `OWNER_USERNAME` / `OWNER_PASSWORD`, and change the
+password in **Settings** immediately. Seeded credentials are a break-glass
+account, not a shipping password.
+
+### 5. Point R2 CORS at the live origin
+
+The bucket must allow the browser to PUT to it from the deployed origin:
+
+```powershell
+$env:CLOUDFLARE_API_TOKEN = '<Cloudflare API token>'
+$env:CF_ACCOUNT_ID        = '<account id>'
+$env:R2_BUCKET            = 'tirap-docs'
+$env:APP_ORIGIN           = 'https://<service>.onrender.com'
+npm run r2:cors
+```
+
+Verify with `cd backend; npm run check:r2`. If a custom domain is added later,
+re-run with the new origin (`--extra-origin` adds a second one).
+
+### 6. Optional: frontend on Vercel
+
+The Render service already serves `dist/`, so a separate Vercel project is
+optional. If you add one, **do not point the browser directly at Render**: the
+session cookie is `SameSite=Lax`, so a cross-site `fetch` would not send it —
+login would look successful and every later call would return `401`.
+
+Proxy `/api` through Vercel instead, which keeps the browser same-origin:
+
+```json
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://<service>.onrender.com/api/:path*" }
+  ]
+}
+```
+
+- Leave `VITE_API_URL` unset; the client already defaults to `/api`.
+- Set `APP_ORIGIN` on Render to `https://<app>.vercel.app` and add the Render
+  host as a second R2 origin:
+  `npm run r2:cors -- --extra-origin https://<service>.onrender.com`.
+- The first request after idle can take ~30 s on Render's free plan (cold start).
+
+### 7. Things that will bite
+
+| Symptom | Cause / fix |
+| --- | --- |
+| `P1001: Can't reach database server` | Direct `db.<ref>.supabase.co` host on Render → switch to the pooler |
+| `P1000: Authentication failed` | Wrong password, or the pooler username is `postgres` instead of `postgres.<ref>` |
+| `prepared statement "s0" already exists` | You used transaction mode without `?pgbouncer=true` |
+| Health `503`, logs show DB errors | Supabase project paused (free tier pauses after ~7 days idle) — restore it in the dashboard |
+| Login works, then 401 after ~30 min | Expected: rolling 30-minute inactivity session |
+| `db push` asks to reset the database | You pointed it at the wrong project. Stop and check the ref in the URL |
+| `Invalid prisma.document invocation` after deploy | `prisma generate` was skipped in the build command |
+
+Supabase free tier: project pauses after ~7 days without activity and has a
+500 MB database limit. Enable **Scheduled backups** (Pro) or run a weekly
+`pg_dump` to R2 before handing the app to the client.
+
+### Prisma only — no `supabase-js` in this app
+
+Supabase's quickstart uses `VITE_SUPABASE_URL` + a publishable key and queries
+tables from the browser. **Do not add that here.** In Tirap the browser is a
+view; the server owns every rule:
+
+| Bypassed by a browser Supabase client | Why it must stay on the server |
+| --- | --- |
+| F1–F17 calculation | `backend/src/utils/calculator.js` is the single source of truth |
+| Daily save | one atomic transaction; partial writes must roll back |
+| Closed day | `409` guard stops edits after closing |
+| Sessions | opaque HttpOnly cookie, 30-minute rolling expiry |
+| Audit log | every write is recorded server-side |
+| Uploads | presigned URLs are minted only for authenticated sessions |
+
+A browser client would need Row Level Security written and tested for all 20
+tables just to reach parity, and it would still not reproduce the calculator or
+the atomic day save. Supabase is used here as **managed PostgreSQL only**.
+
+The publishable/anon key is not a database password. It cannot replace
+`DATABASE_URL`, and Prisma cannot use it.
+
 ## Server-authoritative calculation
+
 
 The browser is a view, not a source of truth. `backend/src/utils/calculator.js`
 owns formulas F1–F17; `shared/calc.js` only re-exports it so the live preview
@@ -318,13 +565,13 @@ the F14 cash chain.
 | Total fuel + R/F | ₹2,14,722 + ₹13,240 |
 | Closing stock F8 | 14,470 / 8,930 L |
 | Opening value F9 | ₹15,34,764 / ₹9,17,524 |
-| Closing value F10 | ₹14,42,080 / ₹7,95,484 |
+| Closing value F9 | ₹14,42,080 / ₹7,95,484 |
 | Lubricants F6 | ₹580 |
-| Expenses F13 | ₹35,002 |
-| Net cash F12 | −₹29,487 |
-| Total cash F16 | ₹34,467 |
-| R/F + cash F14 | ₹47,707 |
-| Difference | ₹0 |
+| Expenses (total) | ₹35,002 |
+| Net cash F11 | −₹29,487 |
+| Total cash F12 | ₹34,467 |
+| R/F + cash F16 | ₹47,707 |
+| Difference F13 | ₹0 |
 
 `backend/test/tc01.test.js` asserts every one of these numbers, plus paper
 vs exact rounding, R/F validation, meter rollover/replacement and profit.
@@ -346,7 +593,7 @@ npm test
 │  └─ lib/                 api client, formatters, useResource
 ├─ shared/calc.js          Browser-side re-export of the server engine (preview)
 ├─ backend/
-│  ├─ prisma/schema.prisma 19 tables; Decimal(12,2) money, Decimal(12,3) volume
+│  ├─ prisma/schema.prisma 20 tables; Decimal(12,2) money, Decimal(12,3) volume
 │  ├─ scripts/             setup-postgres.ps1 (role + DB + .env + push + seed)
 │  ├─ src/
 │  │  ├─ utils/calculator.js  authoritative F1–F17 engine

@@ -1,0 +1,58 @@
+# Render Blueprint for Tirap.
+#
+# One web service serves both the API (/api/*) and the built React app (dist/),
+# so cookies, CORS and CSV downloads all stay same-origin.
+#
+# The database lives in Supabase, not on Render. Use the shared pooler
+# (session mode, port 5432) — see README → "Deploy: Render + Supabase".
+#
+# Secrets use `sync: false`, so Render prompts for them instead of storing
+# them in this file.
+
+services:
+  - type: web
+    name: tirap
+    runtime: node
+    plan: free
+    # Supabase project is in AWS ap-northeast-1 (Tokyo); Singapore is the
+    # closest Render region. Render regions: oregon | ohio | virginia |
+    # frankfurt | singapore
+    region: singapore
+    branch: main
+    autoDeploy: true
+
+    buildCommand: npm ci && cd backend && npm ci && npx prisma generate && cd .. && npm run build
+    startCommand: node backend/src/index.js
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_VERSION
+        value: 22.23.2
+      - key: NODE_ENV
+        value: production
+
+      # Supabase shared pooler, session mode (port 5432):
+      # postgresql://postgres.<REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:5432/postgres?schema=public&sslmode=require
+      - key: DATABASE_URL
+        sync: false
+
+      # The public URL of this service (or the custom domain). No trailing slash.
+      - key: APP_ORIGIN
+        sync: false
+
+      - key: SESSION_COOKIE
+        value: tirap_session
+      - key: OWNER_USERNAME
+        value: owner
+      - key: OWNER_PASSWORD
+        sync: false
+
+      # Cloudflare R2 (optional). Remove this block if uploads are not used.
+      - key: CF_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        value: tirap-docs

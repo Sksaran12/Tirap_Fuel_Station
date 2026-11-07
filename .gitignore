@@ -11,3 +11,6 @@ dist-ssr
 backend/.env
 backend/prisma/*.db
 backend/prisma/*.db-journal
+
+# R2 CORS helper secrets
+infra/r2/.env

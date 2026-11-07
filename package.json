@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "r2:cors": "node infra/r2/apply-cors.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.69.0",

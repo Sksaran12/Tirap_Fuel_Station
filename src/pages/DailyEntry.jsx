@@ -101,37 +101,59 @@ export default function DailyEntry() {
       online: current.online.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)),
     }))
 
+  const buildPayload = () => ({
+    rates: form.rates,
+    nozzles: form.nozzles.map((row) => ({
+      nozzleId: row.nozzleId,
+      opening: Number(row.opening) || 0,
+      closing: Number(row.closing) || 0,
+      rollover: Boolean(row.rollover),
+      replacedLitres: row.replacedLitres === null || row.replacedLitres === '' ? null : Number(row.replacedLitres),
+    })),
+    rf: form.rf,
+    lube: form.lube
+      .filter((row) => row.itemName && Number(row.quantity) > 0)
+      .map((row) => ({
+        itemId: row.itemId || null,
+        itemName: row.itemName,
+        quantity: Number(row.quantity) || 0,
+        price: Number(row.price) || 0,
+      })),
+    online: form.online.filter((row) => Number(row.amount) > 0),
+    pos: Number(form.pos) || 0,
+    bankDeposit: Number(form.bankDeposit) || 0,
+    countedCash: Number(form.countedCash) || 0,
+  })
+
   const save = async () => {
     setBusy('save')
     setActionError('')
     try {
-      const payload = {
-        rates: form.rates,
-        nozzles: form.nozzles.map((row) => ({
-          nozzleId: row.nozzleId,
-          opening: Number(row.opening) || 0,
-          closing: Number(row.closing) || 0,
-          rollover: Boolean(row.rollover),
-          replacedLitres: row.replacedLitres === null || row.replacedLitres === '' ? null : Number(row.replacedLitres),
-        })),
-        rf: form.rf,
-        lube: form.lube
-          .filter((row) => row.itemName && Number(row.quantity) > 0)
-          .map((row) => ({
-            itemId: row.itemId || null,
-            itemName: row.itemName,
-            quantity: Number(row.quantity) || 0,
-            price: Number(row.price) || 0,
-          })),
-        online: form.online.filter((row) => Number(row.amount) > 0),
-        pos: Number(form.pos) || 0,
-        bankDeposit: Number(form.bankDeposit) || 0,
-        countedCash: Number(form.countedCash) || 0,
-      }
-      const next = await api.put(`/day/${date}`, payload)
+      const next = await api.put(`/day/${date}`, buildPayload())
       setData(next)
     } catch (failure) {
       setActionError(failure.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  /**
+   * Closing saves first, then locks. The server closes whatever is persisted,
+   * so a close without a save would silently discard the on-screen edits.
+   */
+  const closeDay = async () => {
+    setBusy('close')
+    setActionError('')
+    try {
+      const saved = await api.put(`/day/${date}`, buildPayload())
+      setData(saved)
+      const next = await api.post(`/day/${date}/close`)
+      setData(next)
+      setConfirm(null)
+    } catch (failure) {
+      setActionError(failure.message)
+      setConfirm(null)
     } finally {
       setBusy('')
     }
@@ -225,12 +247,12 @@ export default function DailyEntry() {
                   variant="primary"
                   onClick={() =>
                     confirm === 'close'
-                      ? runAction(`/day/${date}/close`)
+                      ? closeDay()
                       : runAction(`/day/${date}/reopen`, { note: 'Owner reopened the day' })
                   }
                   disabled={Boolean(busy)}
                 >
-                  {confirm === 'close' ? 'Close day' : 'Reopen day'}
+                  {confirm === 'close' ? (busy === 'close' ? 'Saving & closing…' : 'Close day') : 'Reopen day'}
                 </Button>
               </span>
             </div>

@@ -338,11 +338,14 @@ export async function saveDay(req, res) {
   const body = parsed.data
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const current = await tx.dailyReport.findUnique({ where: { id: report.id } })
-      if (!current || current.status === 'closed') {
-        throw httpError(409, 'This day is closed. Reopen it before editing.')
-      }
+    // A day save touches ~25 rows across 8 tables. Over a remote pooler that
+    // can exceed Prisma's 5 s default, which closes the transaction mid-write.
+    await prisma.$transaction(
+      async (tx) => {
+        const current = await tx.dailyReport.findUnique({ where: { id: report.id } })
+        if (!current || current.status === 'closed') {
+          throw httpError(409, 'This day is closed. Reopen it before editing.')
+        }
 
       // Carried cash always comes from the last closed day in PostgreSQL.
       const { computed: previousComputed } = await previousContext(date, tx)
@@ -388,23 +391,22 @@ export async function saveDay(req, res) {
         })
       }
 
-      for (const nozzle of body.nozzles) {
-        await tx.nozzleReading.upsert({
-          where: { dailyReportId_nozzleId: { dailyReportId: report.id, nozzleId: nozzle.nozzleId } },
-          update: {
-            opening: nozzle.opening,
-            closing: nozzle.closing,
-            rollover: Boolean(nozzle.rollover),
-            replacedLitres: nozzle.replacedLitres ?? null,
-          },
-          create: {
+      // One delete + one insert instead of one round-trip per nozzle. Only the
+      // nozzles present in the payload are replaced, so an omitted nozzle keeps
+      // its stored reading.
+      if (body.nozzles.length) {
+        await tx.nozzleReading.deleteMany({
+          where: { dailyReportId: report.id, nozzleId: { in: requestedNozzles } },
+        })
+        await tx.nozzleReading.createMany({
+          data: body.nozzles.map((nozzle) => ({
             dailyReportId: report.id,
             nozzleId: nozzle.nozzleId,
             opening: nozzle.opening,
             closing: nozzle.closing,
             rollover: Boolean(nozzle.rollover),
             replacedLitres: nozzle.replacedLitres ?? null,
-          },
+          })),
         })
       }
 
@@ -475,7 +477,9 @@ export async function saveDay(req, res) {
         where: { id: report.id },
         data: { totals: computed },
       })
-    })
+      },
+      { maxWait: 15000, timeout: 30000 },
+    )
   } catch (error) {
     if (error.status) {
       return res.status(error.status).json({ error: error.message, ...(error.extra ?? {}) })
