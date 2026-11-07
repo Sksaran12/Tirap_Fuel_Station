@@ -251,15 +251,18 @@ manually (or from any external scheduler). It is housekeeping only — it delete
 ## Deploy: Render + Supabase
 
 ```text
-Browser ──HTTPS──► Render web service (node backend/src/index.js)
-                     │  serves dist/ and /api on the same origin
+Browser ──HTTPS──► Vercel frontend
+                     │  same-origin /api proxy
+                     ▼
+                   Render API (backend/)
                      ├──► Supabase Postgres (shared pooler, session mode, :5432)
                      └──► Cloudflare R2 (presigned PUT/GET, private bucket)
 ```
 
-One Render web service serves both the API and the built app, so the session
-cookie, CORS and CSV downloads all stay same-origin. The database is **not** on
-Render. `render.yaml` in the repo root is a Blueprint for exactly this shape.
+Render runs only the API from the `backend/` root directory. Vercel runs the
+React frontend from the repository root and proxies `/api/*` to Render, so the
+browser remains same-origin. The database is **not** on Render.
+`render.yaml` in the repo root is a Blueprint for this split deployment.
 
 ### 1. Create the Supabase database
 
@@ -326,9 +329,10 @@ It asks for the `sync: false` values.
 | Setting | Value |
 | --- | --- |
 | Runtime | Node |
+| Root directory | `backend` |
 | Region | same continent as Supabase (India → Singapore) |
-| Build command | `npm ci && cd backend && npm ci && npx prisma generate && cd .. && npm run build` |
-| Start command | `node backend/src/index.js` |
+| Build command | `npm ci && npx prisma generate` |
+| Start command | `npm start` |
 | Health check path | `/api/health` |
 | Disk | none (R2 replaces it) |
 
@@ -366,7 +370,8 @@ Then reload `https://<service>.onrender.com/api/health`:
   "db": { "engine": "PostgreSQL", "status": "connected", "latencyMs": 42 } }
 ```
 
-Open the site, sign in with `OWNER_USERNAME` / `OWNER_PASSWORD`, and change the
+Open the API health endpoint first. The frontend is deployed separately on
+Vercel. Sign in there with `OWNER_USERNAME` / `OWNER_PASSWORD`, then change the
 password in **Settings** immediately. Seeded credentials are a break-glass
 account, not a shipping password.
 
@@ -385,12 +390,20 @@ npm run r2:cors
 Verify with `cd backend; npm run check:r2`. If a custom domain is added later,
 re-run with the new origin (`--extra-origin` adds a second one).
 
-### 6. Optional: frontend on Vercel
+### 6. Deploy the frontend on Vercel
 
-The Render service already serves `dist/`, so a separate Vercel project is
-optional. If you add one, **do not point the browser directly at Render**: the
-session cookie is `SameSite=Lax`, so a cross-site `fetch` would not send it —
-login would look successful and every later call would return `401`.
+Import the same repository into Vercel with the repository root as the project
+root:
+
+| Setting | Value |
+| --- | --- |
+| Root directory | repository root / empty |
+| Build command | `npm ci && npm run build` |
+| Output directory | `dist` |
+
+**Do not point the browser directly at Render**: the session cookie is
+`SameSite=Lax`, so a cross-site `fetch` would not send it — login would look
+successful and every later call would return `401`.
 
 Proxy `/api` through Vercel instead, which keeps the browser same-origin:
 

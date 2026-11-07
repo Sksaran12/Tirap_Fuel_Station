@@ -1,7 +1,7 @@
 # Render Blueprint for Tirap.
 #
-# One web service serves both the API (/api/*) and the built React app (dist/),
-# so cookies, CORS and CSV downloads all stay same-origin.
+# Render runs the API from backend/. The React frontend is deployed separately
+# on Vercel and proxies /api/* to this service.
 #
 # The database lives in Supabase, not on Render. Use the shared pooler
 # (session mode, port 5432) — see README → "Deploy: Render + Supabase".
@@ -14,6 +14,9 @@ services:
     name: tirap
     runtime: node
     plan: free
+    # Render runs this service from the backend folder. The React frontend is
+    # deployed separately on Vercel.
+    rootDir: backend
     # Supabase project is in AWS ap-northeast-1 (Tokyo); Singapore is the
     # closest Render region. Render regions: oregon | ohio | virginia |
     # frankfurt | singapore
@@ -21,8 +24,8 @@ services:
     branch: main
     autoDeploy: true
 
-    buildCommand: npm ci && cd backend && npm ci && npx prisma generate && cd .. && npm run build
-    startCommand: node backend/src/index.js
+    buildCommand: npm ci && npx prisma generate
+    startCommand: npm start
     healthCheckPath: /api/health
 
     envVars:
