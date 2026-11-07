@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Trash2, UserPlus } from 'lucide-react'
 import { api } from '../lib/api'
+import { toast } from 'react-toastify'
 import { dateLabel, money } from '../lib/format'
 import { useResource } from '../lib/useResource'
 import { useDay } from '../context/DayContext'
@@ -47,7 +48,19 @@ export default function Credit() {
     return { outstanding, given, paid }
   }, [parties])
 
+  const todayTotals = useMemo(() => {
+    const todays = transactions.filter((row) => row.date === date)
+    const given = todays.filter((row) => row.type === 'credit').reduce((sum, row) => sum + row.amount, 0)
+    const paid = todays.filter((row) => row.type === 'payment').reduce((sum, row) => sum + row.amount, 0)
+    return { count: todays.length, given, paid }
+  }, [transactions, date])
+
   const shown = partyFilter ? transactions.filter((row) => row.partyId === partyFilter) : transactions
+  const shownTotals = useMemo(() => {
+    const given = shown.filter((row) => row.type === 'credit').reduce((sum, row) => sum + row.amount, 0)
+    const paid = shown.filter((row) => row.type === 'payment').reduce((sum, row) => sum + row.amount, 0)
+    return { given, paid, count: shown.length }
+  }, [shown])
   const selectedParty = parties.find((party) => party.id === partyFilter)
   const partyId = txn.partyId || parties[0]?.id || ''
 
@@ -65,8 +78,10 @@ export default function Credit() {
       setPartyDraft({ name: '', phone: '', creditLimit: 0, openingBalance: 0 })
       setShowParty(false)
       refresh()
+      toast.success('Party saved.')
     } catch (failure) {
       setActionError(failure.message)
+      toast.error(failure.message)
     } finally {
       setBusy(false)
     }
@@ -87,8 +102,10 @@ export default function Credit() {
       })
       setTxn((current) => ({ ...current, amount: 0, note: '' }))
       refresh()
+      toast.success(txn.type === 'credit' ? 'Credit added.' : 'Payment added.')
     } catch (failure) {
       setActionError(failure.message)
+      toast.error(failure.message)
     } finally {
       setBusy(false)
     }
@@ -100,8 +117,10 @@ export default function Credit() {
     try {
       await api.del(`/credit/transactions/${id}`)
       refresh()
+      toast.success('Entry deleted.')
     } catch (failure) {
       setActionError(failure.message)
+      toast.error(failure.message)
     } finally {
       setBusy(false)
     }
@@ -129,11 +148,29 @@ export default function Credit() {
           ['Credit given', totals.given],
           ['Payments received', totals.paid],
         ].map(([label, value]) => (
-          <Card key={label} className="px-4 py-3">
+          <Card key={label} className="animate-rise px-4 py-3">
             <span className="text-[10.5px] font-medium uppercase tracking-[0.12em] text-[#4E525A]">{label}</span>
             <Money value={value} tone={label === 'Outstanding' && value > 0 ? 'bad' : undefined} className="mt-1.5 block text-[19px] font-semibold" />
           </Card>
         ))}
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 rounded-[14px] border border-[#E2E4E6] bg-[#F5F7F9] px-4 py-3 sm:grid-cols-3">
+        <div>
+          <span className="text-[10.5px] font-medium uppercase tracking-[0.12em] text-[#4E525A]">Today&apos;s credit given (auto)</span>
+          <p className="mt-1 text-[16px] font-bold tabular-nums text-[#0D0F14]">{money(todayTotals.given)}</p>
+          <p className="text-[10.5px] text-[#9BA0A6]">{dateLabel(date)}</p>
+        </div>
+        <div>
+          <span className="text-[10.5px] font-medium uppercase tracking-[0.12em] text-[#4E525A]">Today&apos;s payments total (auto)</span>
+          <p className="mt-1 text-[16px] font-bold tabular-nums text-[#147A3A]">{money(todayTotals.paid)}</p>
+          <p className="text-[10.5px] text-[#9BA0A6]">{todayTotals.count} entries</p>
+        </div>
+        <div>
+          <span className="text-[10.5px] font-medium uppercase tracking-[0.12em] text-[#4E525A]">Balance today</span>
+          <p className="mt-1 text-[16px] font-bold tabular-nums text-[#0D0F14]">{money(todayTotals.paid - todayTotals.given)}</p>
+          <p className="text-[10.5px] text-[#9BA0A6]">payments − credit given</p>
+        </div>
       </div>
 
       {showParty ? (
@@ -294,16 +331,19 @@ export default function Credit() {
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Amount (₹)</span>
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Amount / Price (₹)</span>
               <NumberInput value={txn.amount} onChange={(value) => setTxn({ ...txn, amount: value })} />
+              <span className="mt-1 block text-[11px] text-[#9BA0A6]">
+                Payments total auto: {money(todayTotals.paid)} today · {txn.type === 'payment' ? `after this entry ${money(todayTotals.paid + (Number(txn.amount) || 0))}` : `credit given ${money(todayTotals.given)}`}
+              </span>
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Note</span>
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Note / Vehicle No</span>
               <TextInput
                 value={txn.note}
                 maxLength={160}
-                placeholder="Vehicle number, invoice…"
+                placeholder="Name, vehicle number, invoice…"
                 onChange={(event) => setTxn({ ...txn, note: event.target.value })}
               />
             </label>
@@ -319,10 +359,10 @@ export default function Credit() {
         </Card>
       </div>
 
-      <Card className="mt-4">
+      <Card className="animate-rise mt-4" style={{ animationDelay: '100ms' }}>
         <CardHeader
           title={selectedParty ? `Transactions · ${selectedParty.name}` : 'Recent credit transactions'}
-          subtitle="Newest first, 300 entries."
+          subtitle={`Names + prices. Newest first, ${shownTotals.count} entries · Given ${money(shownTotals.given)} · Paid ${money(shownTotals.paid)}`}
           actions={
             partyFilter ? (
               <Button size="sm" variant="muted" onClick={() => setPartyFilter('')}>
@@ -338,18 +378,20 @@ export default function Credit() {
             <table className="w-full min-w-[720px] border-collapse">
               <thead>
                 <tr>
+                  <th className="h-[33px] border-b border-[#E2E4E6] px-2 text-center text-[12px] font-normal text-[#4E525A] w-[44px]">Sl No</th>
                   <th className="h-[33px] border-b border-[#E2E4E6] px-4 text-left text-[12px] font-normal text-[#4E525A]">Date</th>
-                  <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-left text-[12px] font-normal text-[#4E525A]">Party</th>
+                  <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-left text-[12px] font-normal text-[#4E525A]">Name (Party)</th>
                   <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-left text-[12px] font-normal text-[#4E525A]">Type</th>
                   <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-left text-[12px] font-normal text-[#4E525A]">Mode</th>
                   <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-left text-[12px] font-normal text-[#4E525A]">Note</th>
-                  <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Amount</th>
+                  <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Price (₹)</th>
                   <th className="h-[33px] w-12 border-b border-[#E2E4E6] px-2 text-right text-[12px] font-normal text-[#4E525A]" />
                 </tr>
               </thead>
               <tbody>
-                {shown.map((row) => (
+                {shown.map((row, idx) => (
                   <tr key={row.id} className="border-b border-[#E2E4E6]">
+                    <td className="px-2 py-2 text-center text-[12px] tabular-nums text-[#4E525A]">{idx + 1}</td>
                     <td className="px-4 py-2 text-[12.5px] tabular-nums text-[#4E525A]">{dateLabel(row.date)}</td>
                     <td className="px-3 py-2 text-[12.5px] font-medium text-[#0D0F14]">{row.partyName}</td>
                     <td className="px-3 py-2">

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
+import { toast } from 'react-toastify'
 import { dateLabel, money } from '../lib/format'
 import { useResource } from '../lib/useResource'
 import { useDay } from '../context/DayContext'
@@ -52,8 +53,10 @@ export default function Expenses() {
       })
       setDraft((current) => ({ ...current, details: '', amount: 0 }))
       expenses.refresh()
+      toast.success(`Expense added: ${money(draft.amount)}`)
     } catch (failure) {
       setActionError(failure.message)
+      toast.error(failure.message)
     } finally {
       setBusy(false)
     }
@@ -65,8 +68,10 @@ export default function Expenses() {
     try {
       await api.del(`/expenses/${id}`)
       expenses.refresh()
+      toast.success('Expense deleted.')
     } catch (failure) {
       setActionError(failure.message)
+      toast.error(failure.message)
     } finally {
       setBusy(false)
     }
@@ -89,25 +94,9 @@ export default function Expenses() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <Card className="lg:sticky lg:top-[83px] lg:self-start">
-          <CardHeader title="Add an expense" subtitle="Running costs reduce daily profit; one-off spends do not." />
+        <Card className="animate-pop lg:sticky lg:top-[83px] lg:self-start">
+          <CardHeader title="Add an expense" subtitle="Just enter name + price. Total calculates automatically." />
           <form onSubmit={add} className="space-y-3 p-4">
-            <label className="block">
-              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Category</span>
-              <Select
-                value={categoryId}
-                onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}
-                required
-              >
-                <option value="">Choose category…</option>
-                {(categories.data?.categories ?? []).map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
             <div className="block">
               <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Type</span>
               <div className="grid grid-cols-2 gap-2" role="group" aria-label="Expense type">
@@ -133,18 +122,21 @@ export default function Expenses() {
             </div>
 
             <label className="block">
-              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Details</span>
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Name / Details</span>
               <TextInput
                 value={draft.details}
-                placeholder="e.g. Generator diesel, tea for staff"
+                placeholder="e.g. Generator diesel, Salary, Tea for staff"
                 maxLength={160}
                 onChange={(event) => setDraft({ ...draft, details: event.target.value })}
               />
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Amount (₹)</span>
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">Price (₹)</span>
               <NumberInput value={draft.amount} onChange={(value) => setDraft({ ...draft, amount: value })} />
+              <span className="mt-1 block text-[11px] text-[#9BA0A6]">
+                Total after this: {money(totals.total + (Number(draft.amount) || 0))}
+              </span>
             </label>
 
             <Button
@@ -176,10 +168,10 @@ export default function Expenses() {
             ))}
           </div>
 
-          <Card>
+          <Card className="animate-rise" style={{ animationDelay: '60ms' }}>
             <CardHeader
               title={`Expenses on ${dateLabel(date)}`}
-              subtitle="Running expenses feed F11 and F17; one-off spends only leave the cash box."
+              subtitle={`Names + prices. ${rows.length} entries · Total ${money(totals.total)} (Running ${money(totals.running)} · One-off ${money(totals.oneOff)})`}
             />
             {expenses.loading && !expenses.data ? (
               <Empty>Loading expenses…</Empty>
@@ -190,18 +182,18 @@ export default function Expenses() {
                 <table className="w-full min-w-[620px] border-collapse">
                   <thead>
                     <tr>
-                      <th className="h-[33px] border-b border-[#E2E4E6] px-4 text-left text-[12px] font-normal text-[#4E525A]">Category</th>
-                      <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-left text-[12px] font-normal text-[#4E525A]">Details</th>
+                      <th className="h-[33px] border-b border-[#E2E4E6] px-2 text-center text-[12px] font-normal text-[#4E525A] w-[44px]">Sl No</th>
+                      <th className="h-[33px] border-b border-[#E2E4E6] px-4 text-left text-[12px] font-normal text-[#4E525A]">Name (Details)</th>
                       <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-left text-[12px] font-normal text-[#4E525A]">Type</th>
-                      <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Amount</th>
+                      <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Price (₹)</th>
                       <th className="h-[33px] w-12 border-b border-[#E2E4E6] px-2 text-right text-[12px] font-normal text-[#4E525A]" />
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row) => (
+                    {rows.map((row, idx) => (
                       <tr key={row.id} className="border-b border-[#E2E4E6]">
-                        <td className="px-4 py-2 text-[12.5px] font-medium text-[#0D0F14]">{row.category}</td>
-                        <td className="px-3 py-2 text-[12.5px] text-[#4E525A]">{row.details || <span className="text-[#9BA0A6]">—</span>}</td>
+                        <td className="px-2 py-2 text-center text-[12px] tabular-nums text-[#4E525A]">{idx + 1}</td>
+                        <td className="px-4 py-2 text-[12.5px] font-medium text-[#0D0F14]">{row.details || row.category || <span className="text-[#9BA0A6]">—</span>}</td>
                         <td className="px-3 py-2">
                           <span
                             className={`inline-flex h-[23px] items-center rounded-[7px] px-2 text-[10.5px] font-medium uppercase tracking-[0.5px] ${

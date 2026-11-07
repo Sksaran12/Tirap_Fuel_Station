@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CalendarDays,
@@ -345,23 +345,38 @@ export default function DailyEntry() {
                 </label>
               ))}
             </div>
+            {preview ? (
+              <div className="grid grid-cols-1 gap-2 border-t border-[#E2E4E6] px-4 py-3 sm:grid-cols-2">
+                {['MS', 'HSD'].map((product) => (
+                  <div key={product} className="rounded-[10px] bg-[#F5F7F9] px-3 py-2 text-[11.5px] leading-relaxed text-[#4E525A]">
+                    <span className="font-semibold text-[#0D0F14]">{product} sale box:</span>{' '}
+                    {inr(preview.products[product].acSale, 3)} L × ₹{Number(preview.products[product].rate || 0).toFixed(2)} ={' '}
+                    <span className="font-semibold tabular-nums text-[#0D0F14]">{money(preview.products[product].amount)}</span>
+                    <span className="block text-[10.5px] text-[#9BA0A6]">A/C sale × rate (F4)</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </Card>
 
           {/* Nozzles */}
           <Card>
             <CardHeader
               title="Nozzle meters"
-              subtitle="Closing − opening = sale (F1). Opening is carried from the last closed day."
+              subtitle="Closing − opening = sale (F1). A/C sale = meter sale − R/F (F3). Amount = sale × rate."
               actions={<Pill litres={preview} />}
             />
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] border-collapse">
+              <table className="w-full min-w-[820px] border-collapse">
                 <thead>
                   <tr>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-2 text-center text-[12px] font-normal text-[#4E525A] w-[44px]">Sl No</th>
                     <th className="h-[33px] border-b border-[#E2E4E6] px-4 text-left text-[12px] font-normal text-[#4E525A]">Nozzle</th>
-                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Opening</th>
-                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Closing</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Op (Opening)</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Cl (Closing)</th>
                     <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Sale (L)</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Rate (₹/L)</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Amount (₹)</th>
                     <th className="h-[33px] border-b border-[#E2E4E6] px-4 text-left text-[12px] font-normal text-[#4E525A]">Fix</th>
                   </tr>
                 </thead>
@@ -371,8 +386,15 @@ export default function DailyEntry() {
                       form.nozzles.filter((item) => item.product === row.product).findIndex((item) => item.nozzleId === row.nozzleId)
                     ]
                     const below = Number(row.closing) < Number(row.opening) && row.replacedLitres === null
+                    const sale = computed ? computed.sale : 0
+                    const rate = preview?.products?.[row.product]?.rate ?? form.rates[row.product] ?? 0
+                    const amount = sale * rate
+                    const isLastOfProduct =
+                      index === form.nozzles.length - 1 || form.nozzles[index + 1]?.product !== row.product
                     return (
-                      <tr key={row.nozzleId} className="border-b border-[#E2E4E6]">
+                      <React.Fragment key={row.nozzleId}>
+                      <tr className={`border-b border-[#E2E4E6] ${row.product === 'HSD' ? 'bg-[#FBFCFD]' : ''}`}>
+                        <td className="px-2 py-1.5 text-center text-[12px] tabular-nums text-[#4E525A]">{index + 1}</td>
                         <td className="px-4 py-1.5 text-[12.5px] font-medium text-[#0D0F14]">
                           {row.name}
                           <span className="ml-2 text-[10.5px] font-normal uppercase tracking-[0.06em] text-[#9BA0A6]">
@@ -397,8 +419,14 @@ export default function DailyEntry() {
                             className={rowInput}
                           />
                         </td>
-                        <td className="px-3 py-1.5 text-right text-[12.5px] tabular-nums text-[#0D0F14]">
+                        <td className="px-3 py-1.5 text-right text-[12.5px] tabular-nums text-[#0D0F14] font-medium">
                           {computed ? inr(computed.sale, 3) : '0.000'}
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-[12.5px] tabular-nums text-[#4E525A]">
+                          {Number(rate).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-[12.5px] tabular-nums text-[#0D0F14]">
+                          {computed ? money(amount) : '₹0'}
                         </td>
                         <td className="px-4 py-1.5">
                           {below ? (
@@ -427,47 +455,175 @@ export default function DailyEntry() {
                           )}
                         </td>
                       </tr>
+                      {isLastOfProduct ? (
+                        <tr className={row.product === 'MS' ? 'bg-[#F5F7F9] border-b-2 border-[#0D0F14]/10' : 'bg-[#EEF3F8] border-b-2 border-[#0D0F14]/10'}>
+                          <td colSpan={4} className="px-4 py-2 text-[12px] font-semibold text-[#0D0F14]">
+                            {row.product} TOTAL — {form.nozzles.filter((n) => n.product === row.product).length} nozzles
+                          </td>
+                          <td className="px-3 py-2 text-right text-[12.5px] font-bold tabular-nums text-[#0D0F14]">
+                            {preview ? inr(preview.products[row.product].meterSale, 3) : '0.000'}
+                          </td>
+                          <td className="px-3 py-2 text-right text-[12px] tabular-nums text-[#4E525A]">
+                            × ₹{Number(preview?.products[row.product]?.rate ?? 0).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2 text-right text-[12.5px] font-bold tabular-nums text-[#0D0F14]">
+                            {preview ? money(preview.products[row.product].meterSale * preview.products[row.product].rate) : '₹0'}
+                          </td>
+                          <td className="px-4 py-2 text-[11px] text-[#4E525A]">
+                            {preview ? `A/C ${inr(preview.products[row.product].acSale, 3)} L` : ''}
+                          </td>
+                        </tr>
+                      ) : null}
+                      </React.Fragment>
                     )
                   })}
+                  <tr className="bg-[#0D0F14] text-white">
+                    <td colSpan={4} className="px-4 py-2.5 text-[12px] font-bold tracking-wide">
+                      GRAND TOTAL — ALL NOZZLES
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-[13px] font-bold tabular-nums">
+                      {preview ? inr(preview.products.MS.meterSale + preview.products.HSD.meterSale, 3) : '0.000'}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-[12px] text-white/70">—</td>
+                    <td className="px-3 py-2.5 text-right text-[13px] font-bold tabular-nums">
+                      {preview
+                        ? money(
+                            preview.products.MS.meterSale * preview.products.MS.rate +
+                              preview.products.HSD.meterSale * preview.products.HSD.rate,
+                          )
+                        : '₹0'}
+                    </td>
+                    <td className="px-4 py-2.5 text-[11px] text-white/70">
+                      {preview ? `F7 ${money(preview.fuel.totalAmount)}` : ''}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
+            {preview ? (
+              <div className="grid grid-cols-1 gap-2 border-t border-[#E2E4E6] px-4 py-3 sm:grid-cols-3">
+                {['MS', 'HSD'].map((product) => (
+                  <div key={product} className="rounded-[10px] border border-[#E2E4E6] bg-[#F5F7F9] px-3 py-2 text-[11.5px] leading-relaxed">
+                    <p className="font-semibold text-[#0D0F14]">{product} A/C sale box</p>
+                    <p className="mt-0.5 text-[#4E525A]">
+                      {inr(preview.products[product].acSale, 3)} L × ₹{Number(preview.products[product].rate || 0).toFixed(2)} ={' '}
+                      <strong className="tabular-nums text-[#0D0F14]">{money(preview.products[product].amount)}</strong>
+                    </p>
+                    <p className="text-[10.5px] text-[#9BA0A6]">Total A/C sale count × rate (F4)</p>
+                  </div>
+                ))}
+                <div className="rounded-[10px] bg-[#0D0F14] px-3 py-2 text-[11.5px] leading-relaxed text-white">
+                  <p className="font-semibold">Total sales (F7)</p>
+                  <p className="mt-0.5 tabular-nums">{money(preview.products.MS.amount)} + {money(preview.products.HSD.amount)}</p>
+                  <p className="text-[12px] font-bold tabular-nums">= {money(preview.fuel.totalAmount)}</p>
+                </div>
+              </div>
+            ) : null}
+            {preview ? (
+              <div className="border-t border-[#E2E4E6] px-4 py-3">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#4E525A]">Op Stock × Rate — stock value (F9)</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[620px] border-collapse text-[12px]">
+                    <thead>
+                      <tr>
+                        <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-left font-medium text-[#4E525A]">Product</th>
+                        <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-right font-medium text-[#4E525A]">Op Stock (L)</th>
+                        <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-right font-medium text-[#4E525A]">Rate (₹/L)</th>
+                        <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-right font-medium text-[#4E525A]">Op Stock Amount</th>
+                        <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-right font-medium text-[#4E525A]">Cl Stock (L)</th>
+                        <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-right font-medium text-[#4E525A]">Cl Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {['MS', 'HSD'].map((product) => (
+                        <tr key={product} className="border-b border-[#EFF1F3]">
+                          <td className="px-3 py-1.5 font-semibold text-[#0D0F14]">
+                            {product} ({product === 'MS' ? 'Petrol' : 'Diesel'})
+                          </td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{inr(preview.products[product].openingStock, 3)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{Number(preview.products[product].rate || 0).toFixed(2)}</td>
+                          <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{money(preview.products[product].openingValue)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{inr(preview.products[product].closingStock, 3)}</td>
+                          <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{money(preview.products[product].closingValue)}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-[#F5F7F9] font-semibold">
+                        <td className="px-3 py-1.5">TOTAL</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">
+                          {inr(preview.products.MS.openingStock + preview.products.HSD.openingStock, 3)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right">—</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">
+                          {money(preview.products.MS.openingValue + preview.products.HSD.openingValue)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">
+                          {inr(preview.products.MS.closingStock + preview.products.HSD.closingStock, 3)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">
+                          {money(preview.products.MS.closingValue + preview.products.HSD.closingValue)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-1.5 text-[10.5px] text-[#9BA0A6]">MS and HSD stock values shown separately; variance (F10) is dip − closing stock in the Day totals box.</p>
+              </div>
+            ) : null}
           </Card>
 
           {/* R/F */}
           <Card>
             <CardHeader
               title="R/F litres"
-              subtitle="Returned to the tank. A/C sale = meter sale − R/F (F3)."
+              subtitle="Returned to the tank. A/C sale = meter sale − R/F (F3). R/F value = R/F litres × rate (F5)."
             />
             <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
               {['MS', 'HSD'].map((product) => (
-                <label key={product} className="block">
-                  <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">
-                    {product} R/F (L)
-                  </span>
-                  <NumberInput
-                    value={form.rf[product]}
-                    onChange={(value) => update({ rf: { ...form.rf, [product]: value } })}
-                    disabled={closed}
-                    aria-label={`${product} R/F litres`}
-                    className="text-left"
-                  />
-                  {preview ? (
-                    <span className="mt-1 block text-[11px] text-[#9BA0A6]">
-                      A/C sale {litres(preview.products[product].acSale)} · value {money(preview.products[product].rfValue)}
+                <div key={product} className="space-y-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">
+                      {product} R/F (L)
                     </span>
+                    <NumberInput
+                      value={form.rf[product]}
+                      onChange={(value) => update({ rf: { ...form.rf, [product]: value } })}
+                      disabled={closed}
+                      aria-label={`${product} R/F litres`}
+                      className="text-left"
+                    />
+                  </label>
+                  {preview ? (
+                    <div className="rounded-[10px] bg-[#F5F7F9] px-3 py-2 text-[11.5px] leading-relaxed text-[#4E525A]">
+                      <span className="font-semibold text-[#0D0F14]">
+                        {inr(preview.products[product].rf, 3)} L × ₹{Number(preview.products[product].rate || 0).toFixed(2)} ={' '}
+                        {money(preview.products[product].rfValue)}
+                      </span>
+                      <span className="block text-[10.5px] text-[#9BA0A6]">
+                        R/F value (F5) · A/C sale {litres(preview.products[product].acSale)}
+                      </span>
+                    </div>
                   ) : null}
-                </label>
+                </div>
               ))}
             </div>
+            {preview ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E4E6] px-4 py-3">
+                <div className="text-[12px] text-[#4E525A]">
+                  <span className="font-semibold text-[#0D0F14]">Total R/F amount:</span>{' '}
+                  <span className="tabular-nums">{money(preview.products.MS.rfValue)} + {money(preview.products.HSD.rfValue)}</span>
+                </div>
+                <div className="rounded-[10px] bg-[#0D0F14] px-4 py-2 text-[13px] font-bold tabular-nums text-white">
+                  = {money(preview.fuel.totalRfValue)}
+                </div>
+              </div>
+            ) : null}
           </Card>
 
-          {/* Lubricants */}
+          {/* Lubricants & M-Oil */}
           <Card>
             <CardHeader
-              title="Lubricants"
-              subtitle="One row per item sold today. Price is per litre or per pack."
+              title="Lubricants & M-Oil"
+              subtitle="Names + pricing per row. Total below updates automatically (qty × price). Price is per litre or per pack."
               actions={
                 <Button
                   size="sm"
@@ -539,6 +695,16 @@ export default function DailyEntry() {
                   </button>
                 </div>
               ))}
+              {preview ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E4E6] bg-[#F5F7F9] px-3 py-2.5 lg:col-span-full -mx-4 -mb-4 mt-2 px-4">
+                  <span className="text-[12px] text-[#4E525A]">
+                    {form.lube.length} item(s) · Qty {inr(form.lube.reduce((s, r) => s + (Number(r.quantity) || 0), 0), 3)}
+                  </span>
+                  <span className="rounded-[10px] bg-[#0D0F14] px-4 py-1.5 text-[13px] font-bold tabular-nums text-white">
+                    Total M-Oil / Lubricant (F6): {money(preview.lube.total)}
+                  </span>
+                </div>
+              ) : null}
             </div>
           </Card>
 
