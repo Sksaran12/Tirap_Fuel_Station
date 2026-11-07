@@ -53,12 +53,21 @@ app.use((req, res, next) => {
   next()
 })
 
+// ── Health Check (lightweight, no database dependency) ───────────────────────
+app.get('/health', (_req, res) => {
+  res.json({
+    status: 'OK',
+    service: 'tirap-api',
+    message: 'Tirap Fuel Station Backend Running',
+    time: new Date().toISOString(),
+  })
+})
+
 /**
- * Liveness + database readiness. The DB probe is a real round-trip through
- * Prisma, so a stale DATABASE_URL or a stopped database is reported as 503
- * instead of a misleading 200.
+ * Deep Readiness / Diagnostics probe (real round-trip through Prisma).
+ * Accessible at GET /api/health (and GET /ready)
  */
-app.get('/api/health', async (req, res) => {
+const deepHealthHandler = async (req, res) => {
   const url = process.env.DATABASE_URL || ''
   const engine = url.startsWith('postgres') ? 'PostgreSQL' : url.startsWith('file:') ? 'SQLite' : 'unknown'
   const started = Date.now()
@@ -68,6 +77,7 @@ app.get('/api/health', async (req, res) => {
     res.json({
       ok: true,
       service: 'tirap-api',
+      status: 'healthy',
       db: { engine, status: 'connected', latencyMs: Date.now() - started },
       time: new Date().toISOString(),
     })
@@ -75,12 +85,16 @@ app.get('/api/health', async (req, res) => {
     res.status(503).json({
       ok: false,
       service: 'tirap-api',
+      status: 'degraded',
       db: { engine, status: 'unreachable', latencyMs: Date.now() - started },
       error: 'Database connection failed.',
       time: new Date().toISOString(),
     })
   }
-})
+}
+
+app.get('/api/health', deepHealthHandler)
+app.get('/ready', deepHealthHandler)
 
 app.post('/api/auth/login', login)
 app.post('/api/auth/logout', logout)
@@ -128,15 +142,7 @@ app.get('/api/uploads/day/:date/url',    getDayReportDownloadUrl)
 app.get('/api/uploads/:id/url',          getDownloadUrl)
 app.delete('/api/uploads/:id',           deleteUpload)
 
-// Built frontend (npm run build), when present.
-const dist = path.resolve(__dirname, '../../dist')
-app.use(express.static(dist))
-app.get(/^(?!\/api).*/, (req, res, next) => {
-  res.sendFile(path.join(dist, 'index.html'), (error) => {
-    if (error) next()
-  })
-})
-
+// 404 handler for unmatched routes (Pure API backend)
 app.use((req, res) => res.status(404).json({ error: 'Not found.' }))
 
 app.use((error, req, res, next) => {
