@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { prisma, num, audit, isDateKey, shiftDate, businessDate } from './db.js'
 import { computeDay, PRODUCTS } from './utils/calculator.js'
+import { archiveDayToR2 } from './archive.js'
 
 /* ------------------------------ validation ------------------------------- */
 
@@ -485,7 +486,12 @@ export async function saveDay(req, res) {
 
   const fresh = await prisma.dailyReport.findUnique({ where: { id: report.id } })
   await audit('day.save', 'day', date, { totalCash: num(fresh.totals?.cash?.total) })
-  res.json(await dayPayload(fresh))
+  const payload = await dayPayload(fresh)
+
+  // Automatically archive the calculated day data as a CSV file to Cloudflare R2 on save
+  archiveDayToR2(date, payload).catch((err) => console.error('[day.save archive error]', err))
+
+  res.json(payload)
 }
 
 export async function closeDay(req, res) {
@@ -520,6 +526,10 @@ export async function closeDay(req, res) {
     data: { status: 'closed', closedAt: new Date(), totals: computed },
   })
   await audit('day.close', 'day', date, { totalCash: computed.cash.total })
+  const closedPayload = await dayPayload(updated)
+
+  // Automatically archive the finalized closed day to Cloudflare R2
+  archiveDayToR2(date, closedPayload).catch((err) => console.error('[day.close archive error]', err))
 
   // The next open day starts from today's total cash (F14).
   const next = await prisma.dailyReport.findFirst({
