@@ -174,3 +174,10 @@ app.use((error, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Tirap API on http://localhost:${PORT} (origin ${ORIGIN})`)
 })
+
+// Warm the pooler connection now, not on the first user request: a Supabase
+// session-pooler connect can cost ~0.5-1 s, which the very first visitor (or a
+// freshly deployed instance) would otherwise pay inside their first call.
+prisma.$queryRaw`SELECT 1`.catch((error) => {
+  console.warn('[warmup] initial DB ping failed (server still works):', error?.message?.slice(0, 120))
+})

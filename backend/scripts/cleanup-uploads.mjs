@@ -30,10 +30,24 @@ const { r2, R2_BUCKET, r2Configured } = await import('../src/r2.js')
 const dryRun = process.argv.includes('--dry-run')
 const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
-const stale = await prisma.document.findMany({
-  where: { status: 'pending', createdAt: { lt: cutoff } },
-  select: { id: true, key: true, filename: true, createdAt: true },
+// `pending` rows come from presigning: the browser asked but never confirmed.
+// Server-side archives (tag === 'daily-report-csv') are excluded so an old
+// invalid tag can never cost the station its archived register sheets.
+// The tag check runs in JavaScript on purpose: in SQL, `tag <> 'daily-report-csv'`
+// is NULL for a NULL tag, which would silently drop untagged rows from the result.
+const candidates = await prisma.document.findMany({
+  where: {
+    status: 'pending',
+    createdAt: { lt: cutoff },
+  },
+  select: { id: true, key: true, filename: true, createdAt: true, tag: true },
 })
+
+const stale = candidates.filter((doc) => doc.tag !== 'daily-report-csv')
+const skippedArchives = candidates.length - stale.length
+if (skippedArchives > 0) {
+  console.log(`skipped ${skippedArchives} protected archive row(s) (${skippedArchives === 1 ? '1 row is' : 'rows are'} tagged daily-report-csv)`)
+}
 
 console.log(`pending rows older than 24h: ${stale.length}`)
 for (const doc of stale) {

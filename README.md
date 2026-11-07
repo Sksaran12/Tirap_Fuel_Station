@@ -216,7 +216,23 @@ Uploads are optional. Files never pass through the Node process:
 
 `pending` rows mean "the browser asked but never proved it uploaded". They are
 invisible to `GET /api/uploads` and are removed after 24 hours:
-`npm run uploads:cleanup` (add `--dry-run` to inspect).
+`npm run uploads:cleanup` (add `--dry-run` to inspect). The cleanup ignores
+rows tagged `daily-report-csv` — those are server-written archives, not
+browser uploads (see below).
+
+### Automatic daily-register archive
+
+Every **save** and **close** of a day writes a paper-style CSV of that day's
+whole register (rates, meters, stock, the F1–F17 chain, profit) to the bucket
+under `reports/<date>/daily-report-<date>.csv`, with a `ready`
+`documents` row tagged `daily-report-csv` and an audit entry
+(`report.archive_r2`). It replaces itself on the next save of the same date.
+
+- `GET /api/uploads?tag=daily-report-csv` lists the archives.
+- `GET /api/uploads/day/:date/url` returns a fresh 15-minute signed download
+  URL for a date's sheet.
+- Without R2 credentials the archive is skipped with a console warning; the
+  app itself never depends on it.
 
 Set these in `backend/.env` (or the Render dashboard). Never prefix them with
 `VITE_` — those variables are compiled into the public bundle.
@@ -278,8 +294,14 @@ postgresql://postgres.<PROJECT-REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.co
 4. Append the Prisma query parameters:
 
 ```text
-.../postgres?schema=public&sslmode=require
+.../postgres?schema=public&sslmode=require&connection_limit=5
 ```
+
+> Keep `connection_limit=5`. The shared session pooler allows at most
+> **15 client connections per project** across everyone using it, and Prisma's
+> default pool (2×CPU+1) plus any parallel queries can exhaust it with
+> `FATAL: EMAXCONNSESSION` and broken requests. With `connection_limit=5`
+> there is always head-room for a second session (a terminal, a cron job).
 
 > **Do not use the direct host** `db.<PROJECT-REF>.supabase.co`. It resolves to
 > IPv6 only, and Render has no outbound IPv6, so the connection times out even
@@ -290,7 +312,7 @@ postgresql://postgres.<PROJECT-REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.co
 
 | Supabase pooler region | Render region |
 | --- | --- |
-| `ap-northeast-1`, `ap-southeast-1`, `ap-southeast-2` | `singapore` |
+| `ap-south-1` (Mumbai), `ap-northeast-1`, `ap-southeast-1`, `ap-southeast-2` | `singapore` |
 | `us-east-1`, `us-east-2` | `virginia` or `ohio` |
 | `us-west-1`, `us-west-2` | `oregon` |
 | `eu-central-1`, `eu-west-1`, `eu-west-2` | `frankfurt` |
@@ -377,18 +399,22 @@ account, not a shipping password.
 
 ### 5. Point R2 CORS at the live origin
 
-The bucket must allow the browser to PUT to it from the deployed origin:
+The bucket must allow the browser to PUT to it from the deployed origin. The
+origin is wherever the browser page comes from — the **Vercel** domain:
 
 ```powershell
 $env:CLOUDFLARE_API_TOKEN = '<Cloudflare API token>'
 $env:CF_ACCOUNT_ID        = '<account id>'
 $env:R2_BUCKET            = 'tirap-docs'
-$env:APP_ORIGIN           = 'https://<service>.onrender.com'
-npm run r2:cors
+$env:APP_ORIGIN           = 'https://<app>.vercel.app'
+npm run r2:cors -- --extra-origin https://<service>.onrender.com
 ```
 
+`--extra-origin` also allows the Render-served copy of the app (and you can add
+`http://localhost:5173` the same way for local development).
+
 Verify with `cd backend; npm run check:r2`. If a custom domain is added later,
-re-run with the new origin (`--extra-origin` adds a second one).
+re-run with the new origin.
 
 ### 6. Deploy the frontend on Vercel
 
@@ -405,15 +431,10 @@ root:
 `SameSite=Lax`, so a cross-site `fetch` would not send it — login would look
 successful and every later call would return `401`.
 
-Proxy `/api` through Vercel instead, which keeps the browser same-origin:
-
-```json
-{
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "https://<service>.onrender.com/api/:path*" }
-  ]
-}
-```
+A `vercel.json` is already in the repo root and already points `/api/*` at
+`https://tirap-fuel-station.onrender.com`. If the Render service is named
+differently, change that one line. It also falls back to `index.html` for every
+SPA route (`/dashboard`, `/daily-entry`, …), so the browser stays same-origin:
 
 - Leave `VITE_API_URL` unset; the client already defaults to `/api`.
 - Set `APP_ORIGIN` on Render to `https://<app>.vercel.app` and add the Render
@@ -430,6 +451,8 @@ Proxy `/api` through Vercel instead, which keeps the browser same-origin:
 | `prepared statement "s0" already exists` | You used transaction mode without `?pgbouncer=true` |
 | Health `503`, logs show DB errors | Supabase project paused (free tier pauses after ~7 days idle) — restore it in the dashboard |
 | Login works, then 401 after ~30 min | Expected: rolling 30-minute inactivity session |
+| First request after a deploy/restart is slow | Normal: one pooler TCP+TLS handshake (~1 s). The server pings `SELECT 1` at boot so only a brand-new instance pays it, not the first visitor |
+| Every request feels ~0.3-0.8 s slower on a local dev PC | Distance. Your machine ↔ Mumbai pooler is ~100 ms per round trip; parallel queries and the lean session write keep it to a handful of round trips. On Render (Singapore ↔ Mumbai ≈ 40 ms) it is faster |
 | `db push` asks to reset the database | You pointed it at the wrong project. Stop and check the ref in the URL |
 | `Invalid prisma.document invocation` after deploy | `prisma generate` was skipped in the build command |
 

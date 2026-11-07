@@ -125,7 +125,10 @@ export async function archiveDayToR2(date, payload) {
       })
     )
 
-    // 2. Upsert record in PostgreSQL document table
+    // 2. Upsert record in PostgreSQL document table.
+    // Status must be `ready`: these rows are not browser uploads awaiting a
+    // confirm call, and the hourly cleanup deletes `pending` rows — which
+    // would erase this archive after 24 hours.
     const existing = await prisma.document.findFirst({
       where: { date, tag: 'daily-report-csv' },
     })
@@ -139,6 +142,8 @@ export async function archiveDayToR2(date, payload) {
           filename,
           size: buffer.byteLength,
           contentType: 'text/csv',
+          status: 'ready',
+          uploadedAt: new Date(),
         },
       })
     } else {
@@ -150,6 +155,8 @@ export async function archiveDayToR2(date, payload) {
           size: buffer.byteLength,
           date,
           tag: 'daily-report-csv',
+          status: 'ready',
+          uploadedAt: new Date(),
         },
       })
     }

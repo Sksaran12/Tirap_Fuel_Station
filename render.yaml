@@ -17,9 +17,9 @@ services:
     # Render runs this service from the backend folder. The React frontend is
     # deployed separately on Vercel.
     rootDir: backend
-    # Supabase project is in AWS ap-northeast-1 (Tokyo); Singapore is the
-    # closest Render region. Render regions: oregon | ohio | virginia |
-    # frankfurt | singapore
+    # Supabase project is in AWS ap-south-1 (Mumbai). Render has no Mumbai, so
+    # Singapore is the closest region.
+    # Render regions: oregon | ohio | virginia | frankfurt | singapore
     region: singapore
     branch: main
     autoDeploy: true
@@ -35,11 +35,16 @@ services:
         value: production
 
       # Supabase shared pooler, session mode (port 5432):
-      # postgresql://postgres.<REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:5432/postgres?schema=public&sslmode=require
+      # postgresql://postgres.<REF>:<PASSWORD>@aws-0-<REGION>.pooler.supabase.com:5432/postgres?schema=public&sslmode=require&connection_limit=5
+      # Keep `connection_limit=5`: the shared session pooler caps every project
+      # at 15 client connections, and a bigger Prisma pool can exhaust it
+      # (FATAL: EMAXCONNSESSION) when queries run in parallel.
       - key: DATABASE_URL
         sync: false
 
-      # The public URL of this service (or the custom domain). No trailing slash.
+      # The public URL that browsers use. If the frontend is served by Vercel
+      # (with /api rewritten to this service), this is the Vercel domain, e.g.
+      # https://tirap-fuel-station.vercel.app — no trailing slash.
       - key: APP_ORIGIN
         sync: false
 

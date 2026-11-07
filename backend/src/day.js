@@ -85,11 +85,6 @@ export function settingsShape(setting) {
   }
 }
 
-async function loadSettings(client = prisma) {
-  const setting = await client.setting.findUnique({ where: { id: 1 } })
-  return { row: setting, shape: settingsShape(setting) }
-}
-
 /**
  * The previous closed day is the only source of carried cash and stock.
  * Recomputing it from its stored raw rows means a tampered `totals` snapshot
@@ -113,13 +108,23 @@ export async function ensureDay(date, client = prisma) {
   let report = await client.dailyReport.findUnique({ where: { date } })
   if (report) return report
 
-  const { previous, computed: previousComputed } = await previousContext(date, client)
+  // First visit only: the previous closed day, the active masters and the
+  // previous readings are independent reads — send them together.
+  const [previous, nozzles, tanks] = await Promise.all([
+    client.dailyReport.findFirst({
+      where: { date: { lt: date }, status: 'closed' },
+      orderBy: { date: 'desc' },
+    }),
+    client.nozzle.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
+    client.tank.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+  ])
 
-  const nozzles = await client.nozzle.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } })
-  const tanks = await client.tank.findMany({ where: { active: true }, orderBy: { name: 'asc' } })
-  const previousReadings = previous
-    ? await client.nozzleReading.findMany({ where: { dailyReportId: previous.id } })
-    : []
+  const [previousComputed, previousReadings] = previous
+    ? await Promise.all([
+        computedFor(previous, client).then((result) => result.computed),
+        client.nozzleReading.findMany({ where: { dailyReportId: previous.id } }),
+      ])
+    : [null, []]
 
   report = await client.dailyReport.create({
     data: {
@@ -147,12 +152,15 @@ export async function ensureDay(date, client = prisma) {
     },
   })
 
-  // Carry yesterday's rate so today starts pre-filled (PRD §4).
-  const lastRates = previous
-    ? await client.rate.findMany({ where: { date: previous.date } })
-    : []
-  for (const rate of lastRates) {
-    await client.rate.create({ data: { product: rate.product, date, rate: rate.rate } })
+  // Carry yesterday's rate so today starts pre-filled (PRD §4). One createMany
+  // instead of one round trip per rate.
+  if (previous) {
+    const lastRates = await client.rate.findMany({ where: { date: previous.date } })
+    if (lastRates.length) {
+      await client.rate.createMany({
+        data: lastRates.map((rate) => ({ product: rate.product, date, rate: rate.rate })),
+      })
+    }
   }
 
   await audit('day.open', 'day', date, { date })
@@ -237,9 +245,15 @@ export async function buildInput(report, client = prisma) {
 }
 
 export async function computedFor(report, client = prisma) {
-  const { row, shape } = await loadSettings(client)
-  const { input } = await buildInput(report, client)
-  return { computed: computeDay(input, shape), settings: shape, settingRow: row, input }
+  // Settings and the day's rows are independent reads: run them on the wire at
+  // the same time instead of two sequential round trips to the pooler.
+  const [setting, built] = await Promise.all([
+    client.setting.findUnique({ where: { id: 1 } }),
+    buildInput(report, client),
+  ])
+  const shape = settingsShape(setting)
+  const { input, readings, products, tankDays } = built
+  return { computed: computeDay(input, shape), settings: shape, settingRow: setting, input, readings, products, tankDays }
 }
 
 let cachedMasters = null
@@ -274,14 +288,17 @@ async function getCachedMasters() {
 }
 
 const dayPayload = async (report) => {
-  const { computed, settings, input } = await computedFor(report)
-  const [masters, previous, later, readings, productDays] = await Promise.all([
+  // Everything here is an independent read of the same moment: settings+day
+  // rows, masters and the day's neighbours all go to the wire in one batch.
+  // `readings` and `products` come back from buildInput (same rows, so no
+  // extra round trips for them).
+  const [state, masters, previous, later] = await Promise.all([
+    computedFor(report),
     getCachedMasters(),
     prisma.dailyReport.findFirst({ where: { date: { lt: report.date } }, orderBy: { date: 'desc' }, select: { date: true, status: true } }),
     prisma.dailyReport.findFirst({ where: { date: { gt: report.date }, status: 'closed' }, orderBy: { date: 'asc' }, select: { date: true } }),
-    prisma.nozzleReading.findMany({ where: { dailyReportId: report.id } }),
-    prisma.productDay.findMany({ where: { dailyReportId: report.id } }),
   ])
+  const { computed, settings, input, readings, products } = state
   const { nozzles, tanks, lubeItems, parties, categories } = masters
 
   return {
@@ -291,7 +308,7 @@ const dayPayload = async (report) => {
     inputs: {
       rates: input.rates,
       rf: input.rf,
-      rfNote: Object.fromEntries(productDays.map((row) => [row.product, row.rfNote ?? ''])),
+      rfNote: Object.fromEntries(products.map((row) => [row.product, row.rfNote ?? ''])),
       nozzles: nozzles.map((nozzle) => {
         const reading = readings.find((row) => row.nozzleId === nozzle.id)
         return {
