@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleAlert,
+  Download,
   Lock,
   Plus,
   Save,
@@ -51,6 +52,21 @@ export default function DailyEntry() {
   const [busy, setBusy] = useState('')
   const [actionError, setActionError] = useState('')
   const [confirm, setConfirm] = useState(null)
+  const [downloading, setDownloading] = useState(false)
+
+  const downloadR2Archive = async () => {
+    setDownloading(true)
+    try {
+      const res = await api.get(`/uploads/day/${date}/url`)
+      if (res?.url) {
+        window.open(res.url, '_blank')
+      }
+    } catch (err) {
+      alert(err.message || 'No archived file found for this day yet. Click Save to create one!')
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   useEffect(() => {
     if (data?.inputs) {
@@ -61,6 +77,18 @@ export default function DailyEntry() {
   }, [data])
 
   const closed = data?.status === 'closed'
+  const isFutureDate = date > todayKey()
+
+  // Has data been entered/calculated for this day?
+  const hasEnteredData = Boolean(
+    data?.inputs &&
+      (data.inputs.rates?.MS > 0 ||
+        data.inputs.rates?.HSD > 0 ||
+        data.inputs.nozzles?.some((n) => n.closing > n.opening) ||
+        data.computed?.fuel?.totalAmount > 0 ||
+        data.computed?.cash?.total > 0 ||
+        data.status === 'closed')
+  )
   const preview = useMemo(() => {
     if (!form || !data) return null
     const input = {
@@ -212,18 +240,35 @@ export default function DailyEntry() {
         </span>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Download button appears only on current & previous dates AND when data has been entered */}
+          {!isFutureDate && hasEnteredData ? (
+            <Button
+              variant="ghost"
+              onClick={downloadR2Archive}
+              disabled={downloading}
+              title="Download archived day register from Cloudflare R2"
+            >
+              <Download className="h-4 w-4" /> {downloading ? 'Fetching…' : 'Download Sheet (R2)'}
+            </Button>
+          ) : null}
+
           {closed ? (
             <Button variant="primary" onClick={() => setConfirm('reopen')}>
               <Unlock className="h-4 w-4" /> Reopen day
             </Button>
           ) : (
             <>
-              <Button variant="secondary" onClick={save} disabled={busy === 'save'}>
-                <Save className="h-4 w-4" /> {busy === 'save' ? 'Saving…' : 'Save'}
-              </Button>
-              <Button variant="primary" onClick={() => setConfirm('close')}>
-                <Lock className="h-4 w-4" /> Close day
-              </Button>
+              {/* Save & Close buttons only appear if it is not a distant future date */}
+              {!isFutureDate ? (
+                <>
+                  <Button variant="secondary" onClick={save} disabled={busy === 'save'}>
+                    <Save className="h-4 w-4" /> {busy === 'save' ? 'Saving…' : 'Save'}
+                  </Button>
+                  <Button variant="primary" onClick={() => setConfirm('close')} disabled={!hasEnteredData}>
+                    <Lock className="h-4 w-4" /> Close day
+                  </Button>
+                </>
+              ) : null}
             </>
           )}
         </div>

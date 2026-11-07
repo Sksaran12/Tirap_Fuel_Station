@@ -18,16 +18,14 @@ export function useResource(loader, deps = []) {
 
   useEffect(() => {
     let active = true
-    // Clear the previous payload so a date/month change can never show stale
-    // figures under a new heading while the request is in flight.
-    setState({ data: null, loading: true, error: '' })
+    setState((current) => ({ ...current, loading: true, error: '' }))
     loaderRef
       .current()
       .then((data) => {
         if (active) setState({ data, loading: false, error: '' })
       })
       .catch((error) => {
-        if (active) setState({ data: null, loading: false, error: error.message })
+        if (active) setState((current) => ({ ...current, loading: false, error: error.message }))
       })
     return () => {
       active = false

@@ -263,6 +263,33 @@ export async function listUploads(req, res) {
   res.json({ documents })
 }
 
+/**
+ * GET /api/uploads/day/:date/url
+ * Generate a fresh presigned GET URL for downloading the day's archived report sheet.
+ */
+export async function getDayReportDownloadUrl(req, res) {
+  const { date } = req.params
+  const doc = await prisma.document.findFirst({
+    where: { date, tag: 'daily-report-csv' },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (!doc) {
+    return res.status(404).json({ error: `No archived report found for date ${date}.` })
+  }
+
+  const url = await getSignedUrl(
+    r2,
+    new GetObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: doc.key,
+      ResponseContentDisposition: `attachment; filename="${doc.filename}"`,
+    }),
+    { expiresIn: 900 },
+  )
+
+  res.json({ url, filename: doc.filename, key: doc.key })
+}
+
 /** GET /api/uploads/:id/url — fresh 15-minute signed GET. */
 export async function getDownloadUrl(req, res) {
   if (!r2Configured) return unavailable(res)

@@ -5,7 +5,7 @@ import express from 'express'
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import { login, logout, me, changePassword, requireAuth } from './auth.js'
-import { presignUpload, confirmUpload, listUploads, getDownloadUrl, deleteUpload } from './uploads.js'
+import { presignUpload, confirmUpload, listUploads, getDownloadUrl, getDayReportDownloadUrl, deleteUpload } from './uploads.js'
 import { prisma } from './db.js'
 import { getDay, saveDay, closeDay, reopenDay } from './day.js'
 import {
@@ -143,11 +143,12 @@ app.get('/api/reports/monthly.csv', monthReportCsv)
 app.get('/api/audit', listAudit)
 
 // File attachments (Cloudflare R2 via presigned URLs)
-app.post('/api/uploads/presign',  presignUpload)
-app.post('/api/uploads/confirm',  confirmUpload)
-app.get('/api/uploads',           listUploads)
-app.get('/api/uploads/:id/url',   getDownloadUrl)
-app.delete('/api/uploads/:id',    deleteUpload)
+app.post('/api/uploads/presign',         presignUpload)
+app.post('/api/uploads/confirm',         confirmUpload)
+app.get('/api/uploads',                  listUploads)
+app.get('/api/uploads/day/:date/url',    getDayReportDownloadUrl)
+app.get('/api/uploads/:id/url',          getDownloadUrl)
+app.delete('/api/uploads/:id',           deleteUpload)
 
 // Built frontend (npm run build), when present.
 const dist = path.resolve(__dirname, '../../dist')
