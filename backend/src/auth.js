@@ -7,6 +7,7 @@ const SESSION_MINUTES = 30
 const LOCK_MINUTES = 15
 const MAX_FAILED = 5
 const LOGIN_REDIRECT_MS = 1500
+const ROLL_EVERY_MS = 60_000
 const COOKIE = process.env.SESSION_COOKIE || 'tirap_session'
 
 const loginSchema = z.object({
@@ -118,9 +119,15 @@ export async function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Session expired. Sign in again.' })
   }
 
-  const expiresAt = new Date(Date.now() + SESSION_MINUTES * 60000)
-  await prisma.session.update({ where: { id: token }, data: { expiresAt, lastSeen: new Date() } })
-  res.cookie(COOKIE, token, cookieOptions(SESSION_MINUTES * 60000))
+  // Rolling extension — but only within a minute of the current expiry, so an
+  // idle-but-signed-in screen does not turn every API call into an extra DB
+  // write over the pooler. A session unused for 30 minutes still expires: the
+  // last call near expiry triggers the write and slides the window forward.
+  if (session.expiresAt.getTime() - Date.now() < ROLL_EVERY_MS) {
+    const expiresAt = new Date(Date.now() + SESSION_MINUTES * 60000)
+    await prisma.session.update({ where: { id: token }, data: { expiresAt, lastSeen: new Date() } })
+    res.cookie(COOKIE, token, cookieOptions(SESSION_MINUTES * 60000))
+  }
 
   req.user = session.user
   req.sessionId = token

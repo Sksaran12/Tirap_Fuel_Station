@@ -11,6 +11,9 @@
     "db:seed": "node src/seed.js",
     "db:studio": "prisma studio",
     "check:tc01": "node scripts/check-tc01.mjs",
+    "check:db": "node scripts/check-db.mjs",
+    "check:r2": "node scripts/check-r2.mjs",
+    "uploads:cleanup": "node scripts/cleanup-uploads.mjs",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {

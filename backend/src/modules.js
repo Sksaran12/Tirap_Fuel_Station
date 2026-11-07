@@ -383,14 +383,25 @@ export async function createLubeItem(req, res) {
 
 export async function dashboard(req, res) {
   const date = req.query.date || businessDate()
+  // The day row must exist before `recent` runs (so the current day is in the
+  // list), but everything below only depends on that row -- they all go to the
+  // wire in one parallel batch instead of one query after another.
   const report = await ensureDay(date)
-  const { computed, settings } = await computedFor(report)
-
-  const recent = await prisma.dailyReport.findMany({
-    where: { date: { lte: date } },
-    orderBy: { date: 'desc' },
-    take: 10,
-  })
+  const [computedContext, recent, parties, openDays] = await Promise.all([
+    computedFor(report),
+    prisma.dailyReport.findMany({
+      where: { date: { lte: date } },
+      orderBy: { date: 'desc' },
+      take: 10,
+    }),
+    partyBalances(),
+    prisma.dailyReport.findMany({
+      where: { status: 'open', date: { lt: date } },
+      orderBy: { date: 'asc' },
+      select: { date: true },
+    }),
+  ])
+  const { computed, settings } = computedContext
 
   const rows = recent.map((row) => {
     const computed = row.totals || {}
@@ -412,13 +423,7 @@ export async function dashboard(req, res) {
     }
   })
 
-  const parties = await partyBalances()
   const dues = Number(parties.reduce((sum, party) => sum + Math.max(0, party.outstanding), 0).toFixed(2))
-  const openDays = await prisma.dailyReport.findMany({
-    where: { status: 'open', date: { lt: date } },
-    orderBy: { date: 'asc' },
-    select: { date: true },
-  })
 
   res.json({
     date,

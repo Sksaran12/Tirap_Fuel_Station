@@ -38,6 +38,8 @@ const PORT = Number(process.env.PORT) || 4000
 const ORIGIN = process.env.APP_ORIGIN || 'http://localhost:5173'
 
 app.disable('x-powered-by')
+// Render terminates TLS and forwards the real client IP, so trust one hop.
+if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1)
 app.use(express.json({ limit: '200kb' }))
 app.use(cookieParser())
 app.use(
@@ -46,10 +48,30 @@ app.use(
     credentials: true,
   }),
 )
+
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  // Google Fonts stylesheet + React inline style attributes.
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob:",
+  // Direct browser uploads go to R2, a different origin.
+  "connect-src 'self' https://*.r2.cloudflarestorage.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ')
+
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('Referrer-Policy', 'same-origin')
   res.setHeader('X-Frame-Options', 'DENY')
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    res.setHeader('Content-Security-Policy', CSP)
+  }
   next()
 })
 
@@ -157,4 +179,11 @@ app.use((error, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`Tirap API on http://localhost:${PORT} (origin ${ORIGIN})`)
+})
+
+// Warm the pooler connection now, not on the first user request: a Supabase
+// session-pooler connect can cost ~0.5-1 s, which the very first visitor (or a
+// freshly deployed instance) would otherwise pay inside their first call.
+prisma.$queryRaw`SELECT 1`.catch((error) => {
+  console.warn('[warmup] initial DB ping failed (server still works):', error?.message?.slice(0, 120))
 })

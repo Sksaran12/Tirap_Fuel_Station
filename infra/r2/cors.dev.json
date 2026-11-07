@@ -1,0 +1,12 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://app.yourdomain.com",
+      "http://localhost:5173"
+    ],
+    "AllowedMethods": ["PUT", "GET", "HEAD"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]

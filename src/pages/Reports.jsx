@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import { ChevronLeft, ChevronRight, Download, Printer } from 'lucide-react'
 import { api, downloadCsv } from '../lib/api'
 import { addMonths, dateLabel, inr, money, monthKey, monthLabel, weekdayLabel } from '../lib/format'
@@ -33,9 +34,23 @@ export default function Reports() {
     ['Daily profit (F17)', money(totals.profit), 'margins from Settings'],
   ]
 
+  const printedOn = new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Kolkata',
+  }).format(new Date())
+
+  const onCsv = () => {
+    downloadCsv(month)
+    toast.success(`Monthly CSV for ${monthLabel(month)} is downloading.`)
+  }
+
   return (
     <div className="px-4 pb-10 pt-4 sm:px-[19px]">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
+      <div className="animate-rise mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1">
             <Button variant="secondary" size="sm" aria-label="Previous month" onClick={() => setDate(`${addMonths(month, -1)}-01`)}>
@@ -55,23 +70,39 @@ export default function Reports() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={() => window.print()}>
-            <Printer className="h-4 w-4" /> Print
+            <Printer className="h-4 w-4" /> Print full month
           </Button>
-          <Button variant="primary" onClick={() => downloadCsv(month)} disabled={empty}>
+          <Button variant="primary" onClick={onCsv} disabled={empty} className="btn-shine">
             <Download className="h-4 w-4" /> Download CSV
           </Button>
         </div>
       </div>
 
-      <div className="mb-3 hidden print:block">
-        <p className="text-[12px] text-[#4E525A]">
-          Tirap Fuel Station · monthly report · {monthLabel(month)} · generated from closed-day records.
-        </p>
+      {/* Printable sheet header — full month on one continuous A4 flow. */}
+      <div className="print-sheet-head mb-4 hidden px-4 py-3 print:block">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold tracking-tight text-[#0D0F14]">Tirap Fuel Station — Monthly Register</p>
+            <p className="mt-0.5 text-[11px] text-[#4E525A]">Authorised BPCL dealer · Arunachal Pradesh</p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p className="text-[13px] font-semibold text-[#0D0F14]">{monthLabel(month)}</p>
+            <p className="mt-0.5 text-[10px] text-[#4E525A]">Printed {printedOn} (IST)</p>
+          </div>
+        </div>
+        <div className="mt-2.5 grid grid-cols-3 gap-2 border-t border-[#0D0F14] pt-2 text-[10.5px]">
+          <span>Days: <strong>{totals.days} ({totals.closedDays} closed)</strong></span>
+          <span>Fuel (F7): <strong>{money(totals.fuelAmount)}</strong></span>
+          <span>Cash (F12): <strong>{money(totals.totalCash)}</strong></span>
+          <span>MS / HSD: <strong>{inr(totals.msLitres, 3)} / {inr(totals.hsdLitres, 3)} L</strong></span>
+          <span>Profit (F17): <strong>{money(totals.profit)}</strong></span>
+          <span>Days off: <strong>{totals.daysWithDifference}</strong></span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="animate-rise grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6" style={{ animationDelay: '70ms' }}>
         {summary.map(([label, value, hint]) => (
-          <Card key={label} className="px-4 py-3">
+          <Card key={label} className="print-avoid-break px-4 py-3">
             <span className="text-[10.5px] font-medium uppercase tracking-[0.12em] text-[#4E525A]">{label}</span>
             <p className="mt-1.5 text-[17px] font-semibold leading-none tracking-[-0.01em] tabular-nums text-[#0D0F14]">{value}</p>
             <p className="mt-1 text-[10.5px] leading-snug text-[#9BA0A6]">{hint}</p>
@@ -91,12 +122,12 @@ export default function Reports() {
         </div>
       ) : null}
 
-      <Card className="mt-4">
+      <Card className="animate-rise print-avoid-break mt-4" style={{ animationDelay: '120ms' }}>
         <CardHeader
           title="Day-by-day register"
           subtitle="Every figure is the stored close (or the live open day). Totals are the month sum."
         />
-        <TableScroll className="[&>table]:min-w-[1180px]">
+        <TableScroll className="print [&>table]:min-w-[1180px]">
           <thead>
             <tr>
               <Th>Date</Th>
@@ -299,9 +330,10 @@ export default function Reports() {
         )}
       </Card>
 
-      <p className="mt-4 text-[11px] leading-relaxed text-[#9BA0A6]">
+      <p className="mt-4 text-[11px] leading-relaxed text-[#9BA0A6] print:text-[9.5px] print:text-[#4E525A]">
         CSV includes the same day rows and a TOTAL line, so it can be filed with the dealer&apos;s monthly papers. Every
         figure is in rupees unless the column says litres.
+        <span className="hidden print:inline"> Source: closed-day records, printed sheets, and R2 archives must agree.</span>
       </p>
     </div>
   )

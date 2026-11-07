@@ -304,16 +304,19 @@ model Expense {
 // ─────────────────────────── file attachments (R2) ──────────────────────────
 
 model Document {
-  id          String   @id @default(cuid()) @db.VarChar(64)
-  key         String   @db.VarChar(500)       // R2 object key e.g. uploads/2026-11-06/<uuid>.pdf
-  filename    String   @db.VarChar(200)       // original file name shown to the user
-  contentType String   @map("content_type") @db.VarChar(100)
-  size        Int                             // file size in bytes
-  date        String?  @db.VarChar(10)        // optional YYYY-MM-DD link to a daily report
-  tag         String?  @db.VarChar(80)        // e.g. "invoice", "challan", "receipt"
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  id          String    @id @default(cuid()) @db.VarChar(64)
+  key         String    @unique @db.VarChar(500)  // R2 object key: server-generated
+  filename    String    @db.VarChar(200)          // display name, sanitized
+  contentType String    @map("content_type") @db.VarChar(100)
+  size        Int                                 // verified size from R2, not the client
+  status      String    @default("pending") @db.VarChar(16) // pending | ready
+  date        String?   @db.VarChar(10)           // optional YYYY-MM-DD link
+  tag         String?   @db.VarChar(80)           // e.g. "invoice", "challan"
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  uploadedAt  DateTime? @map("uploaded_at") @db.Timestamptz(3)
 
   @@index([date])
   @@index([tag])
+  @@index([status, createdAt])
   @@map("documents")
 }

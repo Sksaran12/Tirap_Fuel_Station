@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, KeyRound, Plus, Save } from 'lucide-react'
 import { api } from '../lib/api'
+import { toast } from 'react-toastify'
 import { money } from '../lib/format'
 import { useResource } from '../lib/useResource'
 import {
@@ -67,8 +68,10 @@ export default function Settings() {
       })
       settings.refresh()
       setNotice('Settings saved. New entries and open days recalculate with these values.')
+      toast.success('Settings saved. New entries and open days recalculate with these values.')
     } catch (failure) {
       setError(failure.message)
+      toast.error(failure.message)
     } finally {
       setBusy('')
     }
