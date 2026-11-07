@@ -392,20 +392,25 @@ export async function dashboard(req, res) {
     take: 10,
   })
 
-  const rows = []
-  for (const row of recent) {
-    const result = await computedFor(row)
-    rows.push({
+  const rows = recent.map((row) => {
+    const computed = row.totals || {}
+    const products = computed.products || {}
+    const fuel = computed.fuel || {}
+    const cash = computed.cash || {}
+    const msVariance = products.MS?.variance ?? 0
+    const hsdVariance = products.HSD?.variance ?? 0
+
+    return {
       date: row.date,
       status: row.status,
-      msLitres: result.computed.products.MS.acSale,
-      hsdLitres: result.computed.products.HSD.acSale,
-      fuelAmount: result.computed.fuel.totalAmount,
-      totalCash: result.computed.cash.total,
-      variance: Number((result.computed.products.MS.variance + result.computed.products.HSD.variance).toFixed(3)),
-      profit: result.computed.profit.net,
-    })
-  }
+      msLitres: products.MS?.acSale ?? 0,
+      hsdLitres: products.HSD?.acSale ?? 0,
+      fuelAmount: fuel.totalAmount ?? 0,
+      totalCash: cash.total ?? 0,
+      variance: Number((msVariance + hsdVariance).toFixed(3)),
+      profit: computed.profit?.net ?? 0,
+    }
+  })
 
   const parties = await partyBalances()
   const dues = Number(parties.reduce((sum, party) => sum + Math.max(0, party.outstanding), 0).toFixed(2))
