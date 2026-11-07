@@ -22,6 +22,7 @@ import {
   createParty,
   updateParty,
   createTransaction,
+  updateTransaction,
   deleteTransaction,
   listLubeItems,
   createLubeItem,
@@ -143,6 +144,7 @@ app.get('/api/credit', listCredit)
 app.post('/api/credit/parties', createParty)
 app.put('/api/credit/parties/:id', updateParty)
 app.post('/api/credit/transactions', createTransaction)
+app.put('/api/credit/transactions/:id', updateTransaction)
 app.delete('/api/credit/transactions/:id', deleteTransaction)
 
 app.get('/api/lube-items', listLubeItems)

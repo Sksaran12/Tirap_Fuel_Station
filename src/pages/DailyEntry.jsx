@@ -458,19 +458,21 @@ export default function DailyEntry() {
                       {isLastOfProduct ? (
                         <tr className={row.product === 'MS' ? 'bg-[#F5F7F9] border-b-2 border-[#0D0F14]/10' : 'bg-[#EEF3F8] border-b-2 border-[#0D0F14]/10'}>
                           <td colSpan={4} className="px-4 py-2 text-[12px] font-semibold text-[#0D0F14]">
-                            {row.product} TOTAL — {form.nozzles.filter((n) => n.product === row.product).length} nozzles
+                            {row.product} TOTAL — {form.nozzles.filter((n) => n.product === row.product).length} nozzles · Sale − R/F = A/C
                           </td>
                           <td className="px-3 py-2 text-right text-[12.5px] font-bold tabular-nums text-[#0D0F14]">
-                            {preview ? inr(preview.products[row.product].meterSale, 3) : '0.000'}
+                            {preview ? inr(preview.products[row.product].acSale, 3) : '0.000'}
                           </td>
                           <td className="px-3 py-2 text-right text-[12px] tabular-nums text-[#4E525A]">
                             × ₹{Number(preview?.products[row.product]?.rate ?? 0).toFixed(2)}
                           </td>
                           <td className="px-3 py-2 text-right text-[12.5px] font-bold tabular-nums text-[#0D0F14]">
-                            {preview ? money(preview.products[row.product].meterSale * preview.products[row.product].rate) : '₹0'}
+                            {preview ? money(preview.products[row.product].amount) : '₹0'}
                           </td>
                           <td className="px-4 py-2 text-[11px] text-[#4E525A]">
-                            {preview ? `A/C ${inr(preview.products[row.product].acSale, 3)} L` : ''}
+                            {preview
+                              ? `Meter ${inr(preview.products[row.product].meterSale, 3)} − R/F ${inr(preview.products[row.product].rf, 3)}`
+                              : ''}
                           </td>
                         </tr>
                       ) : null}
@@ -479,22 +481,17 @@ export default function DailyEntry() {
                   })}
                   <tr className="bg-[#0D0F14] text-white">
                     <td colSpan={4} className="px-4 py-2.5 text-[12px] font-bold tracking-wide">
-                      GRAND TOTAL — ALL NOZZLES
+                      GRAND TOTAL — A/C × RATE (F7)
                     </td>
                     <td className="px-3 py-2.5 text-right text-[13px] font-bold tabular-nums">
-                      {preview ? inr(preview.products.MS.meterSale + preview.products.HSD.meterSale, 3) : '0.000'}
+                      {preview ? inr(preview.products.MS.acSale + preview.products.HSD.acSale, 3) : '0.000'}
                     </td>
                     <td className="px-3 py-2.5 text-right text-[12px] text-white/70">—</td>
                     <td className="px-3 py-2.5 text-right text-[13px] font-bold tabular-nums">
-                      {preview
-                        ? money(
-                            preview.products.MS.meterSale * preview.products.MS.rate +
-                              preview.products.HSD.meterSale * preview.products.HSD.rate,
-                          )
-                        : '₹0'}
+                      {preview ? money(preview.fuel.totalAmount) : '₹0'}
                     </td>
                     <td className="px-4 py-2.5 text-[11px] text-white/70">
-                      {preview ? `F7 ${money(preview.fuel.totalAmount)}` : ''}
+                      {preview ? `MS ${money(preview.products.MS.amount)} + HSD ${money(preview.products.HSD.amount)}` : ''}
                     </td>
                   </tr>
                 </tbody>

@@ -364,6 +364,39 @@ export async function deleteTransaction(req, res) {
   res.json({ ok: true })
 }
 
+const txnUpdateSchema = z.object({
+  amount: z.number().positive().max(100000000),
+  mode: z.enum(['cash', 'online']).optional(),
+  type: z.enum(['credit', 'payment']).optional(),
+  note: z.string().trim().max(160).optional(),
+})
+
+export async function updateTransaction(req, res) {
+  const row = await prisma.creditTransaction.findUnique({ where: { id: req.params.id } })
+  if (!row) throw new HttpError(404, 'Entry not found.')
+  await assertOpen(row.date)
+  const parsed = txnUpdateSchema.safeParse(req.body)
+  if (!parsed.success) throw new HttpError(400, 'Invalid credit entry update.', { issues: parsed.error.issues })
+  const updated = await prisma.creditTransaction.update({
+    where: { id: row.id },
+    data: parsed.data,
+    include: { party: true },
+  })
+  await audit('credit.update', 'credit', row.id, { date: updated.date, amount: num(updated.amount) })
+  res.json({
+    transaction: {
+      id: updated.id,
+      date: updated.date,
+      partyId: updated.partyId,
+      partyName: updated.party.name,
+      type: updated.type,
+      mode: updated.mode,
+      amount: num(updated.amount),
+      note: updated.note ?? '',
+    },
+  })
+}
+
 /* --------------------------------- lube --------------------------------- */
 
 export async function listLubeItems(req, res) {

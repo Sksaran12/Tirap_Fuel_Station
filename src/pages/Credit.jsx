@@ -36,6 +36,9 @@ export default function Credit() {
   const [partyDraft, setPartyDraft] = useState({ name: '', phone: '', creditLimit: 0, openingBalance: 0 })
   const [txn, setTxn] = useState({ partyId: '', type: 'credit', mode: 'cash', amount: 0, note: '' })
   const [partyFilter, setPartyFilter] = useState('')
+  // Note: NumberInput in edit mode uses local draft — commit via PUT panel below.
+  const [editing, setEditing] = useState(null)
+  const [editDraft, setEditDraft] = useState({ amount: 0, note: '', mode: 'cash', type: 'credit' })
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState('')
 
@@ -118,6 +121,37 @@ export default function Credit() {
       await api.del(`/credit/transactions/${id}`)
       refresh()
       toast.success('Entry deleted.')
+    } catch (failure) {
+      setActionError(failure.message)
+      toast.error(failure.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const startEdit = (row) => {
+    setEditing(row.id)
+    setEditDraft({ amount: row.amount, note: row.note, mode: row.mode, type: row.type })
+  }
+
+  const saveEdit = async (row) => {
+    const amount = Number(editDraft.amount) || 0
+    if (!(amount > 0)) {
+      toast.error('Amount must be greater than zero.')
+      return
+    }
+    setBusy(true)
+    setActionError('')
+    try {
+      await api.put(`/credit/transactions/${row.id}`, {
+        amount,
+        note: editDraft.note,
+        mode: editDraft.mode,
+        type: editDraft.type,
+      })
+      setEditing(null)
+      refresh()
+      toast.success('Amount and name updated.')
     } catch (failure) {
       setActionError(failure.message)
       toast.error(failure.message)
@@ -389,48 +423,113 @@ export default function Credit() {
                 </tr>
               </thead>
               <tbody>
-                {shown.map((row, idx) => (
-                  <tr key={row.id} className="border-b border-[#E2E4E6]">
+                {shown.map((row, idx) => {
+                  const isEditing = editing === row.id
+                  return (
+                  <tr key={row.id} className={`border-b border-[#E2E4E6] ${isEditing ? 'bg-[#F5F9FF]' : ''}`}>
                     <td className="px-2 py-2 text-center text-[12px] tabular-nums text-[#4E525A]">{idx + 1}</td>
                     <td className="px-4 py-2 text-[12.5px] tabular-nums text-[#4E525A]">{dateLabel(row.date)}</td>
-                    <td className="px-3 py-2 text-[12.5px] font-medium text-[#0D0F14]">{row.partyName}</td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`inline-flex h-[23px] items-center rounded-[7px] px-2 text-[10.5px] font-medium uppercase tracking-[0.5px] ${
-                          row.type === 'credit' ? 'bg-[#FDE8E5] text-[#B42318]' : 'bg-[#E2F4E6] text-[#147A3A]'
-                        }`}
-                      >
-                        {row.type === 'credit' ? 'Credit' : 'Payment'}
-                      </span>
+                    <td className="px-3 py-2 text-[12.5px] font-medium text-[#0D0F14]">
+                      {row.partyName}
+                      {isEditing ? <span className="ml-1 text-[10px] text-[#0B3C8C]">editing…</span> : null}
                     </td>
-                    <td className="px-3 py-2 text-[12px] capitalize text-[#4E525A]">{row.mode}</td>
-                    <td className="px-3 py-2 text-[12.5px] text-[#4E525A]">{row.note || <span className="text-[#9BA0A6]">—</span>}</td>
-                    <td className="px-3 py-2 text-right">
-                      <Money
-                        value={row.amount}
-                        tone={row.type === 'credit' ? 'bad' : 'good'}
-                        className="text-[12.5px] font-medium"
-                      />
+                    <td className="px-3 py-1.5">
+                      {isEditing ? (
+                        <Select value={editDraft.type} onChange={(event) => setEditDraft({ ...editDraft, type: event.target.value })} className={cell}>
+                          <option value="credit">Credit</option>
+                          <option value="payment">Payment</option>
+                        </Select>
+                      ) : (
+                        <span
+                          className={`inline-flex h-[23px] items-center rounded-[7px] px-2 text-[10.5px] font-medium uppercase tracking-[0.5px] ${
+                            row.type === 'credit' ? 'bg-[#FDE8E5] text-[#B42318]' : 'bg-[#E2F4E6] text-[#147A3A]'
+                          }`}
+                        >
+                          {row.type === 'credit' ? 'Credit' : 'Payment'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      {isEditing ? (
+                        <Select value={editDraft.mode} onChange={(event) => setEditDraft({ ...editDraft, mode: event.target.value })} className={cell}>
+                          <option value="cash">Cash</option>
+                          <option value="online">Online</option>
+                        </Select>
+                      ) : (
+                        <span className="text-[12px] capitalize text-[#4E525A]">{row.mode}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      {isEditing ? (
+                        <TextInput value={editDraft.note} onChange={(event) => setEditDraft({ ...editDraft, note: event.target.value })} placeholder="Name / vehicle" className={cell} />
+                      ) : (
+                        <span className="text-[12.5px] text-[#4E525A]">{row.note || <span className="text-[#9BA0A6]">—</span>}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      {isEditing ? (
+                        <NumberInput value={editDraft.amount} onChange={(value) => setEditDraft({ ...editDraft, amount: value })} className={cell} />
+                      ) : (
+                        <span className="block text-right">
+                          <Money value={row.amount} tone={row.type === 'credit' ? 'bad' : 'good'} className="text-[12.5px] font-medium" />
+                        </span>
+                      )}
                     </td>
                     <td className="px-2 py-1.5 text-right">
                       {row.date === date ? (
-                        <button
-                          type="button"
-                          aria-label="Delete credit entry"
-                          disabled={busy}
-                          onClick={() => removeTransaction(row.id)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#9BA0A6] hover:bg-[#FDE8E5] hover:text-[#B42318] disabled:opacity-40"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <span className="inline-flex gap-1">
+                          {isEditing ? (
+                            <>
+                              <button
+                                type="button"
+                                aria-label="Save edit"
+                                disabled={busy}
+                                onClick={() => saveEdit(row)}
+                                className="inline-flex h-8 items-center rounded-[8px] bg-[#17191F] px-2.5 text-[11px] font-semibold text-white disabled:opacity-50"
+                              >
+                                {busy ? '…' : 'Save'}
+                              </button>
+                              <button
+                                type="button"
+                                aria-label="Cancel edit"
+                                onClick={() => setEditing(null)}
+                                className="inline-flex h-8 items-center rounded-[8px] px-2.5 text-[11px] text-[#4E525A] hover:bg-[#EFF1F3]"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                aria-label="Edit credit entry"
+                                disabled={busy}
+                                onClick={() => startEdit(row)}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#9BA0A6] hover:bg-[#EEF3F8] hover:text-[#0B3C8C] disabled:opacity-40"
+                              >
+                                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                              </button>
+                              <button
+                                type="button"
+                                aria-label="Delete credit entry"
+                                disabled={busy}
+                                onClick={() => removeTransaction(row.id)}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#9BA0A6] hover:bg-[#FDE8E5] hover:text-[#B42318] disabled:opacity-40"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                        </span>
                       ) : (
-                        <span className="text-[10.5px] text-[#9BA0A6]" title={`Open ${row.date} to delete`}>
+                        <span className="text-[10.5px] text-[#9BA0A6]" title={`Open ${row.date} to edit`}>
                           —
                         </span>
                       )}
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

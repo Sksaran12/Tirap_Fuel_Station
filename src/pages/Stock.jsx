@@ -107,6 +107,39 @@ export default function Stock() {
     }, {})
   }, [form])
 
+  // Live stock math from the form (not the stale server snapshot) so closing,
+  // variance and value move as the owner types — F8/F9/F10 from calculator.js.
+  const liveFor = (product) => {
+    const base = computed?.products?.[product]
+    if (!base) return null
+    const t = totals[product] ?? { opening: 0, receipts: 0, dip: 0 }
+    const opening = Number(t.opening) || 0
+    const receipts = Number(t.receipts) || 0
+    const dip = Number(t.dip) || 0
+    const meterSale = Number(base.meterSale) || 0
+    const rf = Number(base.rf) || 0
+    const rate = Number(base.rate) || 0
+    const closing = Number((opening + receipts - meterSale + rf).toFixed(3))
+    const variance = Number((dip - closing).toFixed(3))
+    const openingExact = Number((opening * rate).toFixed(2))
+    const closingExact = Number((closing * rate).toFixed(2))
+    const isPaper = base.mode === undefined || computed?.mode !== 'exact'
+    const moneyOut = (n) => (computed?.mode === 'exact' ? Number(n.toFixed(2)) : Math.floor(Number(n.toFixed(2))))
+    return {
+      opening,
+      receipts,
+      dip,
+      meterSale,
+      rf,
+      rate,
+      closing,
+      variance,
+      openingValue: moneyOut(openingExact),
+      closingValue: moneyOut(closingExact),
+      isPaper,
+    }
+  }
+
   const save = async () => {
     setBusy(true)
     setActionError('')
@@ -199,7 +232,7 @@ export default function Stock() {
             </thead>
             <tbody>
               {form.tanks.map((tank) => {
-                const day = computed?.products?.[tank.product]
+                const live = liveFor(tank.product)
                 return (
                   <tr key={tank.tankId} className="border-b border-[#E2E4E6]">
                     <td className="px-4 py-2 text-[12.5px] font-medium text-[#0D0F14]">
@@ -224,8 +257,8 @@ export default function Stock() {
                         onChange={(value) => updateTank(tank.tankId, { receipts: value })}
                       />
                     </td>
-                    <td className="px-3 py-1.5 text-right text-[12.5px] tabular-nums text-[#0D0F14]">
-                      {day ? inr(day.closingStock, 3) : '—'}
+                    <td className="px-3 py-1.5 text-right text-[12.5px] tabular-nums font-semibold text-[#0D0F14]" title="Live: Opening + Receipts − Meter sale + R/F (F8)">
+                      {live ? inr(live.closing, 3) : '—'}
                     </td>
                     <td className="px-3 py-1.5">
                       <NumberInput
@@ -237,8 +270,8 @@ export default function Stock() {
                       />
                     </td>
                     <td className="px-4 py-2 text-right text-[12.5px] tabular-nums">
-                      <span className={day && Math.abs(day.variance) > 0.5 ? 'text-[#B42318]' : 'text-[#4E525A]'}>
-                        {day ? inr(day.variance, 3) : '—'}
+                      <span className={live && Math.abs(live.variance) > 0.5 ? 'text-[#B42318] font-semibold' : 'text-[#4E525A]'}>
+                        {live ? inr(live.variance, 3) : '—'}
                       </span>
                     </td>
                   </tr>
@@ -255,18 +288,18 @@ export default function Stock() {
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {['MS', 'HSD'].map((product) => {
-          const day = computed?.products?.[product]
+          const live = liveFor(product)
           return (
-            <Card key={product}>
-              <CardHeader title={`${product} stock summary`} subtitle="Product totals across every tank." />
+            <Card key={product} className="animate-rise">
+              <CardHeader title={`${product} stock summary`} subtitle="Live from your boxes above — saves on Save stock." />
               <div className="px-4 pb-3 pt-1">
                 {[
-                  ['Opening stock', day ? `${inr(day.openingStock, 3)} L` : '—'],
-                  ['Receipts', day ? `${inr(day.receipts, 3)} L` : '—'],
-                  ['Meter sale (F1)', day ? `${inr(day.meterSale, 3)} L` : '—'],
-                  ['R/F back to tank', day ? `${inr(day.rf, 3)} L` : '—'],
-                  ['Closing book (F8)', day ? `${inr(day.closingStock, 3)} L` : '—'],
-                  ['Physical dip', day ? `${inr(day.dip, 3)} L` : '—'],
+                  ['Opening stock', live ? `${inr(live.opening, 3)} L` : '—'],
+                  ['Receipts', live ? `${inr(live.receipts, 3)} L` : '—'],
+                  ['Meter sale (F1)', live ? `${inr(live.meterSale, 3)} L` : '—'],
+                  ['R/F back to tank', live ? `${inr(live.rf, 3)} L` : '—'],
+                  ['Closing book (F8) live', live ? `${inr(live.closing, 3)} L` : '—'],
+                  ['Physical dip', live ? `${inr(live.dip, 3)} L` : '—'],
                 ].map(([label, value]) => (
                   <div key={label} className="flex items-baseline justify-between gap-3 border-b border-[#EFF1F3] py-[5px] last:border-0">
                     <span className="text-[12px] text-[#4E525A]">{label}</span>
@@ -274,18 +307,18 @@ export default function Stock() {
                   </div>
                 ))}
                 <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-[#E2E4E6] pt-2">
-                  <span className="text-[12px] font-medium text-[#0D0F14]">Variance (F10)</span>
-                  <span className={`text-[13px] font-semibold tabular-nums ${day && Math.abs(day.variance) > 0.5 ? 'text-[#B42318]' : 'text-[#147A3A]'}`}>
-                    {day ? `${inr(day.variance, 3)} L` : '—'}
+                  <span className="text-[12px] font-medium text-[#0D0F14]">Variance (F10) live</span>
+                  <span className={`text-[13px] font-semibold tabular-nums ${live && Math.abs(live.variance) > 0.5 ? 'text-[#B42318]' : 'text-[#147A3A]'}`}>
+                    {live ? `${inr(live.variance, 3)} L` : '—'}
                   </span>
                 </div>
                 <div className="mt-1 flex items-baseline justify-between gap-3">
-                  <span className="text-[12px] text-[#4E525A]">Closing value (F9)</span>
-                  <Money value={day?.closingValue} className="text-[13px] font-semibold" />
+                  <span className="text-[12px] text-[#4E525A]">Closing value (F9) live</span>
+                  <Money value={live?.closingValue} className="text-[13px] font-semibold" />
                 </div>
-                {day && day.lossLitres > 0 ? (
+                {live && live.variance < 0 ? (
                   <p className="mt-2 text-[11px] text-[#B42318]">
-                    Short by {inr(day.lossLitres, 3)} L · valued at {money(day.lossValue)}.
+                    Short by {inr(Math.abs(live.variance), 3)} L · valued at {money(Math.abs(live.variance) * live.rate)}.
                   </p>
                 ) : null}
               </div>
