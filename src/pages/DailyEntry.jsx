@@ -340,6 +340,7 @@ export default function DailyEntry() {
                     onChange={(value) => update({ rates: { ...form.rates, [product]: value } })}
                     disabled={closed}
                     aria-label={`${product} rate`}
+                    placeholder={product === 'MS' ? '99.66' : '89.08'}
                     className="text-left"
                   />
                 </label>
@@ -366,6 +367,14 @@ export default function DailyEntry() {
               subtitle="Closing − opening = sale (F1). A/C sale = meter sale − R/F (F3). Amount = sale × rate."
               actions={<Pill litres={preview} />}
             />
+            {form.nozzles.length === 0 ? (
+              <div className="border-b border-[#F3E0BC] bg-[#FBF0DA] px-4 py-3 text-[12px] leading-relaxed text-[#A66A08]">
+                <strong>No nozzle rows.</strong> The nozzle masters were deleted from Supabase. The server now recreates MS Nozzle 1–4 + HSD Nozzle 1–4 automatically — click Reload and serial rows 1–8 will reappear to fill Op / Cl / Sale / Rate / Amount.
+                <div className="mt-2">
+                  <Button variant="primary" size="sm" onClick={refresh}>Reload masters</Button>
+                </div>
+              </div>
+            ) : null}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[820px] border-collapse">
                 <thead>

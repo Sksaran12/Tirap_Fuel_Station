@@ -7,6 +7,71 @@ import { archiveDayToR2 } from './archive.js'
 
 const moneyInput = z.number().min(0).max(100000000)
 
+/**
+ * Station masters are often wiped when the owner cleans Supabase tables for a
+ * fresh start. A day cannot start without them — recreate the paper-sheet
+ * defaults automatically instead of returning a page with zero nozzle rows.
+ * Idempotent: only runs when the tables are empty.
+ */
+async function ensureMasters(client = prisma) {
+  const [nozzleCount, tankCount, lubeCount, categoryCount, setting] = await Promise.all([
+    client.nozzle.count(),
+    client.tank.count(),
+    client.lubeItem.count(),
+    client.expenseCategory.count(),
+    client.setting.findUnique({ where: { id: 1 } }),
+  ])
+
+  if (nozzleCount === 0) {
+    await client.nozzle.createMany({
+      data: ['MS', 'HSD'].flatMap((product) =>
+        [1, 2, 3, 4].map((index) => ({
+          name: `${product} Nozzle ${index}`,
+          product,
+          sortOrder: (product === 'MS' ? 0 : 10) + index,
+        })),
+      ),
+    })
+  }
+  if (tankCount === 0) {
+    await client.tank.createMany({
+      data: [
+        { name: 'MS Tank 1', product: 'MS' },
+        { name: 'HSD Tank 1', product: 'HSD' },
+      ],
+    })
+  }
+  if (lubeCount === 0) {
+    await client.lubeItem.createMany({
+      data: [
+        { name: 'M-oil 1L', price: 230 },
+        { name: 'M-oil 1.2L', price: 350 },
+      ],
+    })
+  }
+  for (const name of ['Salary', 'Electricity', 'Tea & Food', 'Repairs', 'Transport', 'Stationery', 'Misc']) {
+    if (categoryCount === 0) {
+      await client.expenseCategory.upsert({ where: { name }, update: {}, create: { name } })
+    }
+  }
+  if (!setting) {
+    await client.setting.create({
+      data: {
+        id: 1,
+        rounding: 'paper',
+        stockLossValuation: 'selling',
+        maxMeterDigits: 6,
+        varianceLimit: 200,
+        stationName: 'Tirap Fuel Station',
+      },
+    })
+  }
+  if (nozzleCount === 0 || tankCount === 0 || lubeCount === 0) {
+    cachedMasters = null
+    mastersTimestamp = 0
+  }
+}
+
 const daySchema = z.object({
   rates: z.object({ MS: z.number().min(0).max(1000), HSD: z.number().min(0).max(1000) }),
   nozzles: z.array(
@@ -105,8 +170,49 @@ async function previousContext(date, client = prisma) {
 
 /** Create the day on first visit, carrying meters/stock/cash from the DB. */
 export async function ensureDay(date, client = prisma) {
+  await ensureMasters(client)
   let report = await client.dailyReport.findUnique({ where: { date } })
-  if (report) return report
+  if (report) {
+    // A day created while the masters were wiped has no nozzle/tank rows.
+    // Backfill them now so the serial Op/Cl/Sale/Rate/Amount table renders.
+    const [readingCount, tankDayCount] = await Promise.all([
+      client.nozzleReading.count({ where: { dailyReportId: report.id } }),
+      client.tankDay.count({ where: { dailyReportId: report.id } }),
+    ])
+    if (readingCount === 0 || tankDayCount === 0) {
+      const { previous, computed: previousComputed } = await previousContext(date, client)
+      const [nozzles, tanks] = await Promise.all([
+        client.nozzle.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } }),
+        client.tank.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+      ])
+      const previousReadings = previous
+        ? await client.nozzleReading.findMany({ where: { dailyReportId: previous.id } })
+        : []
+      if (readingCount === 0 && nozzles.length) {
+        await client.nozzleReading.createMany({
+          data: nozzles.map((nozzle) => ({
+            dailyReportId: report.id,
+            nozzleId: nozzle.id,
+            opening: previousReadings.find((reading) => reading.nozzleId === nozzle.id)?.closing ?? 0,
+            closing: previousReadings.find((reading) => reading.nozzleId === nozzle.id)?.closing ?? 0,
+          })),
+        })
+      }
+      if (tankDayCount === 0 && tanks.length) {
+        await client.tankDay.createMany({
+          data: tanks.map((tank) => ({
+            dailyReportId: report.id,
+            tankId: tank.id,
+            opening: previousComputed?.products?.[tank.product]?.closingStock ?? 0,
+            receipts: 0,
+            dip: 0,
+          })),
+        })
+      }
+      report = await client.dailyReport.findUnique({ where: { date } })
+    }
+    return report
+  }
 
   // First visit only: the previous closed day, the active masters and the
   // previous readings are independent reads — send them together.
@@ -261,6 +367,7 @@ let mastersTimestamp = 0
 const MASTER_CACHE_TTL = 30000 // 30 seconds
 
 async function getCachedMasters() {
+  await ensureMasters()
   const now = Date.now()
   if (cachedMasters && now - mastersTimestamp < MASTER_CACHE_TTL) {
     return cachedMasters
