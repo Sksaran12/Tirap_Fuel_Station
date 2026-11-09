@@ -144,7 +144,7 @@ function ExpenseCard({ form, data, closed, updateExpense, removeExpense, addExpe
 }
 
 // Credit collection box: party + price, received (green) vs pending (red).
-function CreditCard({ form, data, closed, updateCredit, addCredit, removeCredit }) {
+function CreditCard({ form, data, closed, updateCredit, addCredit, removeCredit, refresh }) {
   const parties = data.masters?.parties ?? []
   const given = (form.credits ?? []).filter((r) => r.type === 'credit').reduce((s, r) => s + (Number(r.amount) || 0), 0)
   const received = (form.credits ?? []).filter((r) => r.type === 'payment').reduce((s, r) => s + (Number(r.amount) || 0), 0)
@@ -992,6 +992,7 @@ export default function DailyEntry() {
                 ],
               })
             }
+            refresh={refresh}
           />
         </div>
 
