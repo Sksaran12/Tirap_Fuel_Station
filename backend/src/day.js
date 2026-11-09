@@ -453,6 +453,7 @@ const dayPayload = async (report) => {
       creditGiven: input.creditGiven,
       creditReceived: input.creditReceived,
       expenses: input.expenses,
+      credits: input.credits ?? [],
     },
     computed,
     settings,

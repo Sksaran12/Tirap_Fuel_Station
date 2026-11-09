@@ -36,6 +36,7 @@ export default function Credit() {
   const [partyDraft, setPartyDraft] = useState({ name: '', phone: '', creditLimit: 0, openingBalance: 0 })
   const [txn, setTxn] = useState({ partyId: '', type: 'credit', mode: 'cash', amount: 0, note: '' })
   const [partyFilter, setPartyFilter] = useState('')
+  const [manualParty, setManualParty] = useState('')
   // Note: NumberInput in edit mode uses local draft — commit via PUT panel below.
   const [editing, setEditing] = useState(null)
   const [editDraft, setEditDraft] = useState({ amount: 0, note: '', mode: 'cash', type: 'credit' })
@@ -90,11 +91,26 @@ export default function Credit() {
     }
   }
 
+  const createManualParty = async (name) => {
+    const party = await api.post('/credit/parties', { name: name.trim(), phone: '', creditLimit: 0, openingBalance: 0 })
+    refresh()
+    return party.party
+  }
+
   const addTransaction = async (event) => {
     event.preventDefault()
     setBusy(true)
     setActionError('')
     try {
+      let resolvedPartyId = partyId
+      if (manualParty.trim()) {
+        const existing = (data?.parties ?? []).find(
+          (party) => party.name.toLowerCase() === manualParty.trim().toLowerCase()
+        )
+        const party = existing ?? (await createManualParty(manualParty))
+        resolvedPartyId = party.id
+        setManualParty('')
+      }
       await api.post('/credit/transactions', {
         date,
         partyId,

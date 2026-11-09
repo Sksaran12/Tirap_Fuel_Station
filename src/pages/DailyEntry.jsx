@@ -44,10 +44,37 @@ function SummaryRow({ label, value, strong, tone }) {
   )
 }
 
+// Manual party creation — type a name, press Enter, pick it in the row dropdown.
+function ManualPartyBox({ data, refresh, closed }) {
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const create = async () => {
+    const n = name.trim()
+    if (!n) return
+    setBusy(true)
+    try {
+      await api.post('/credit/parties', { name: n, phone: '', creditLimit: 0, openingBalance: 0 })
+      setName('')
+      refresh()
+      toast.success('Party added: ' + n)
+    } catch (failure) {
+      toast.error(failure.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="mb-1 flex flex-wrap items-center gap-2 rounded-[10px] bg-[#F5F7F9] px-3 py-2">
+      <TextInput value={name} disabled={closed} onChange={(e) => setName(e.target.value)} placeholder="Type new party name manually..." className="h-9 min-w-[220px] flex-1" onKeyDown={(e) => { if (e.key === 'Enter') create() }} />
+      <Button size="sm" variant="secondary" disabled={closed || busy || !name.trim()} onClick={create}>{busy ? 'Adding...' : 'Add party'}</Button>
+    </div>
+  )
+}
+
 // Expense row: Name / Details + Type + Price.
 function ExpenseCard({ form, data, closed, updateExpense, removeExpense, addExpense, busy }) {
   const catId = data.masters?.categories?.[0]?.id ?? ''
-  const total = form.expenses.reduce((s, r) => s + (Number(r.amount) || 0), 0)
+  const total = (form.expenses ?? []).reduce((s, r) => s + (Number(r.amount) || 0), 0)
   return (
     <Card>
       <CardHeader
@@ -65,10 +92,10 @@ function ExpenseCard({ form, data, closed, updateExpense, removeExpense, addExpe
         }
       />
       <div className="space-y-2 p-4">
-        {form.expenses.length === 0 ? (
+        {(form.expenses ?? []).length === 0 ? (
           <p className="text-[12px] text-[#9BA0A6]">No expenses today. Add the names and prices you spent.</p>
         ) : null}
-        {form.expenses.map((row, index) => (
+        {(form.expenses ?? []).map((row, index) => (
           <div key={index} className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,2fr)_110px_110px_32px]">
             <TextInput
               value={row.details ?? ''}
@@ -119,8 +146,8 @@ function ExpenseCard({ form, data, closed, updateExpense, removeExpense, addExpe
 // Credit collection box: party + price, received (green) vs pending (red).
 function CreditCard({ form, data, closed, updateCredit, addCredit, removeCredit }) {
   const parties = data.masters?.parties ?? []
-  const given = form.credits.filter((r) => r.type === 'credit').reduce((s, r) => s + (Number(r.amount) || 0), 0)
-  const received = form.credits.filter((r) => r.type === 'payment').reduce((s, r) => s + (Number(r.amount) || 0), 0)
+  const given = (form.credits ?? []).filter((r) => r.type === 'credit').reduce((s, r) => s + (Number(r.amount) || 0), 0)
+  const received = (form.credits ?? []).filter((r) => r.type === 'payment').reduce((s, r) => s + (Number(r.amount) || 0), 0)
   const pending = given - received
   return (
     <Card>
@@ -148,10 +175,11 @@ function CreditCard({ form, data, closed, updateCredit, addCredit, removeCredit 
             <p className="mt-0.5 text-[16px] font-bold tabular-nums">{money(pending)}</p>
           </div>
         </div>
-        {form.credits.length === 0 ? (
+        <ManualPartyBox data={data} refresh={refresh} closed={closed} />
+        {(form.credits ?? []).length === 0 ? (
           <p className="text-[12px] text-[#9BA0A6]">No credit collection today. Add party names + prices.</p>
         ) : null}
-        {form.credits.map((row, index) => (
+        {(form.credits ?? []).map((row, index) => (
           <div key={index} className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1.4fr)_110px_90px_100px_32px]">
             <Select
               value={row.partyId ?? ''}
