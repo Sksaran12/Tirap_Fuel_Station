@@ -344,7 +344,19 @@ export async function buildInput(report, client = prisma) {
     previousBalance: num(report.previousBalance),
     creditGiven,
     creditReceived,
-    expenses: expenses.map((row) => ({ type: row.type, amount: num(row.amount) })),
+    expenses: expenses.map((row) => ({
+      categoryId: row.categoryId,
+      type: row.type,
+      details: row.details ?? '',
+      amount: num(row.amount),
+    })),
+    credits: credits.map((row) => ({
+      partyId: row.partyId,
+      type: row.type,
+      amount: num(row.amount),
+      mode: row.mode,
+      note: row.note ?? '',
+    })),
   }
 
   return { input, readings, products, tankDays, lube, online, expenses, credits }

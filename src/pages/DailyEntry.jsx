@@ -38,11 +38,182 @@ const rowInput = 'h-9 rounded-[8px]'
 function SummaryRow({ label, value, strong, tone }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-[5px]">
-      <span className={`text-[12px] ${strong ? 'font-medium text-[#0D0F14]' : 'text-[#4E525A]'}`}>
-        {label}
-      </span>
+      <span className={`text-[12px] ${strong ? 'font-medium text-[#0D0F14]' : 'text-[#4E525A]'}`}>{label}</span>
       <Money value={value} tone={tone} className={`text-[13px] ${strong ? 'font-semibold' : 'font-medium'}`} />
     </div>
+  )
+}
+
+// Expense row: Name / Details + Type + Price.
+function ExpenseCard({ form, data, closed, updateExpense, removeExpense, addExpense, busy }) {
+  const catId = data.masters?.categories?.[0]?.id ?? ''
+  const total = form.expenses.reduce((s, r) => s + (Number(r.amount) || 0), 0)
+  return (
+    <Card>
+      <CardHeader
+        title="Expenses — names + prices"
+        subtitle="Manual daily rule-book entries. Total updates automatically. Saving writes them with the day."
+        actions={
+          <Button
+            size="sm"
+            variant="muted"
+            disabled={closed || !catId}
+            onClick={() => addExpense(catId)}
+          >
+            <Plus className="h-3.5 w-3.5" /> Add expense
+          </Button>
+        }
+      />
+      <div className="space-y-2 p-4">
+        {form.expenses.length === 0 ? (
+          <p className="text-[12px] text-[#9BA0A6]">No expenses today. Add the names and prices you spent.</p>
+        ) : null}
+        {form.expenses.map((row, index) => (
+          <div key={index} className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,2fr)_110px_110px_32px]">
+            <TextInput
+              value={row.details ?? ''}
+              disabled={closed}
+              aria-label="Expense name"
+              placeholder="Name — e.g. Generator diesel, Salary"
+              onChange={(e) => updateExpense(index, { details: e.target.value })}
+              className={rowInput}
+            />
+            <Select
+              value={row.type}
+              disabled={closed}
+              aria-label="Expense type"
+              className={rowInput}
+              onChange={(e) => updateExpense(index, { type: e.target.value })}
+            >
+              <option value="running">Running</option>
+              <option value="one-off">One-off</option>
+            </Select>
+            <NumberInput
+              value={row.amount}
+              disabled={closed}
+              aria-label="Expense price"
+              placeholder="Price ₹"
+              onChange={(v) => updateExpense(index, { amount: v })}
+              className={rowInput}
+            />
+            <button
+              type="button"
+              aria-label="Remove expense"
+              disabled={closed}
+              onClick={() => removeExpense(index)}
+              className="flex h-9 w-8 items-center justify-center text-[#9BA0A6] hover:text-[#B42318] disabled:opacity-40"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+        <div className="flex items-center justify-between gap-3 border-t border-[#E2E4E6] bg-[#F5F7F9] px-3 py-2.5">
+          <span className="text-[12px] text-[#4E525A]">{form.expenses.length} item(s) · Total EXP</span>
+          <span className="rounded-[10px] bg-[#0D0F14] px-4 py-1.5 text-[13px] font-bold tabular-nums text-white">{money(total)}</span>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// Credit collection box: party + price, received (green) vs pending (red).
+function CreditCard({ form, data, closed, updateCredit, addCredit, removeCredit }) {
+  const parties = data.masters?.parties ?? []
+  const given = form.credits.filter((r) => r.type === 'credit').reduce((s, r) => s + (Number(r.amount) || 0), 0)
+  const received = form.credits.filter((r) => r.type === 'payment').reduce((s, r) => s + (Number(r.amount) || 0), 0)
+  const pending = given - received
+  return (
+    <Card>
+      <CardHeader
+        title="Credit parties — collection"
+        subtitle="Manual entries with names + prices. Green = received, Red = pending."
+        actions={
+          <Button size="sm" variant="muted" disabled={closed || !parties.length} onClick={addCredit}>
+            <Plus className="h-3.5 w-3.5" /> Add row
+          </Button>
+        }
+      />
+      <div className="space-y-2 p-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="rounded-[10px] border border-[#F3C9C9] bg-[#FDEEEC] px-3 py-2">
+            <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-[#B42318]">Credit given · Pending (red)</p>
+            <p className="mt-0.5 text-[16px] font-bold tabular-nums text-[#B42318]">{money(given)}</p>
+          </div>
+          <div className="rounded-[10px] border border-[#CBE7D3] bg-[#EAF6EE] px-3 py-2">
+            <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-[#147A3A]">Received · Paid (green)</p>
+            <p className="mt-0.5 text-[16px] font-bold tabular-nums text-[#147A3A]">{money(received)}</p>
+          </div>
+          <div className="rounded-[10px] bg-[#0D0F14] px-3 py-2 text-white">
+            <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-white/70">Pending balance</p>
+            <p className="mt-0.5 text-[16px] font-bold tabular-nums">{money(pending)}</p>
+          </div>
+        </div>
+        {form.credits.length === 0 ? (
+          <p className="text-[12px] text-[#9BA0A6]">No credit collection today. Add party names + prices.</p>
+        ) : null}
+        {form.credits.map((row, index) => (
+          <div key={index} className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1.4fr)_110px_90px_100px_32px]">
+            <Select
+              value={row.partyId ?? ''}
+              disabled={closed}
+              aria-label="Credit party"
+              className={`${rowInput} col-span-2 sm:col-span-1`}
+              onChange={(e) => updateCredit(index, { partyId: e.target.value })}
+            >
+              <option value="">Choose party…</option>
+              {parties.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </Select>
+            <Select
+              value={row.type}
+              disabled={closed}
+              aria-label="Credit type"
+              className={rowInput}
+              onChange={(e) => updateCredit(index, { type: e.target.value })}
+            >
+              <option value="credit">Credit given</option>
+              <option value="payment">Payment in</option>
+            </Select>
+            <Select
+              value={row.mode}
+              disabled={closed}
+              aria-label="Credit mode"
+              className={rowInput}
+              onChange={(e) => updateCredit(index, { mode: e.target.value })}
+            >
+              <option value="cash">Cash</option>
+              <option value="online">Online</option>
+            </Select>
+            <NumberInput
+              value={row.amount}
+              disabled={closed}
+              aria-label="Credit price"
+              placeholder="Price ₹"
+              onChange={(v) => updateCredit(index, { amount: v })}
+              className={rowInput}
+            />
+            <button
+              type="button"
+              aria-label="Remove credit row"
+              disabled={closed}
+              onClick={() => removeCredit(index)}
+              className="flex h-9 w-8 items-center justify-center text-[#9BA0A6] hover:text-[#B42318] disabled:opacity-40"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <TextInput
+              value={row.note ?? ''}
+              disabled={closed}
+              aria-label="Credit note"
+              placeholder="Note / receipt"
+              onChange={(e) => updateCredit(index, { note: e.target.value })}
+              className={`${rowInput} col-span-2`}
+            />
+          </div>
+        ))}
+      </div>
+    </Card>
   )
 }
 
@@ -83,7 +254,6 @@ export default function DailyEntry() {
   const closed = data?.status === 'closed'
   const isFutureDate = date > todayKey()
 
-  // Has data been entered/calculated for this day?
   const hasEnteredData = Boolean(
     data?.inputs &&
       (data.inputs.rates?.MS > 0 ||
@@ -95,6 +265,8 @@ export default function DailyEntry() {
   )
   const preview = useMemo(() => {
     if (!form || !data) return null
+    const credits = form.credits ?? []
+    const expenses = form.expenses ?? data.inputs.expenses
     const input = {
       rates: form.rates,
       rf: form.rf,
@@ -109,9 +281,9 @@ export default function DailyEntry() {
       bankDeposit: form.bankDeposit,
       countedCash: form.countedCash,
       previousBalance: data.inputs.previousBalance,
-      creditGiven: data.inputs.creditGiven,
-      creditReceived: data.inputs.creditReceived,
-      expenses: data.inputs.expenses,
+      creditGiven: credits.filter((r) => r.type === 'credit').reduce((s, r) => s + (Number(r.amount) || 0), 0),
+      creditReceived: credits.filter((r) => r.type === 'payment' && r.mode === 'cash').reduce((s, r) => s + (Number(r.amount) || 0), 0),
+      expenses,
     }
     return computeDay(input, data.settings)
   }, [form, data])
@@ -132,6 +304,18 @@ export default function DailyEntry() {
       ...current,
       online: current.online.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)),
     }))
+  const updateExpense = (index, patch) =>
+    setForm((current) => ({
+      ...current,
+      expenses: current.expenses.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)),
+    }))
+  const updateCredit = (index, patch) =>
+    setForm((current) => ({
+      ...current,
+      credits: current.credits.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)),
+    }))
+
+  const catId = data?.masters?.categories?.[0]?.id ?? ''
 
   const buildPayload = () => ({
     rates: form.rates,
@@ -155,6 +339,23 @@ export default function DailyEntry() {
     pos: Number(form.pos) || 0,
     bankDeposit: Number(form.bankDeposit) || 0,
     countedCash: Number(form.countedCash) || 0,
+    expenses: (form.expenses ?? [])
+      .filter((row) => Number(row.amount) > 0)
+      .map((row) => ({
+        categoryId: row.categoryId || catId,
+        type: row.type === 'one-off' ? 'one-off' : 'running',
+        details: row.details || '',
+        amount: Number(row.amount) || 0,
+      })),
+    credits: (form.credits ?? [])
+      .filter((row) => row.partyId && Number(row.amount) > 0)
+      .map((row) => ({
+        partyId: row.partyId,
+        type: row.type,
+        amount: Number(row.amount) || 0,
+        mode: row.mode,
+        note: row.note || '',
+      })),
   })
 
   const save = async () => {
@@ -172,10 +373,6 @@ export default function DailyEntry() {
     }
   }
 
-  /**
-   * Closing saves first, then locks. The server closes whatever is persisted,
-   * so a close without a save would silently discard the on-screen edits.
-   */
   const closeDay = async () => {
     setBusy('close')
     setActionError('')
@@ -218,7 +415,6 @@ export default function DailyEntry() {
 
   return (
     <div className="px-4 pb-10 pt-4 sm:px-[19px]">
-      {/* Toolbar: date, status, actions */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
           <Button variant="secondary" size="sm" aria-label="Previous day" onClick={() => setDate(addDays(date, -1))}>
@@ -250,7 +446,6 @@ export default function DailyEntry() {
         </span>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* Download button appears only on current & previous dates AND when data has been entered */}
           {!isFutureDate && hasEnteredData ? (
             <Button
               variant="ghost"
@@ -266,21 +461,16 @@ export default function DailyEntry() {
             <Button variant="primary" onClick={() => setConfirm('reopen')}>
               <Unlock className="h-4 w-4" /> Reopen day
             </Button>
-          ) : (
+          ) : !isFutureDate ? (
             <>
-              {/* Save & Close buttons only appear if it is not a distant future date */}
-              {!isFutureDate ? (
-                <>
-                  <Button variant="secondary" onClick={save} disabled={busy === 'save'}>
-                    <Save className="h-4 w-4" /> {busy === 'save' ? 'Saving…' : 'Save'}
-                  </Button>
-                  <Button variant="primary" onClick={() => setConfirm('close')} disabled={!hasEnteredData}>
-                    <Lock className="h-4 w-4" /> Close day
-                  </Button>
-                </>
-              ) : null}
+              <Button variant="secondary" onClick={save} disabled={busy === 'save'}>
+                <Save className="h-4 w-4" /> {busy === 'save' ? 'Saving…' : 'Save'}
+              </Button>
+              <Button variant="primary" onClick={() => setConfirm('close')} disabled={!hasEnteredData}>
+                <Lock className="h-4 w-4" /> Close day
+              </Button>
             </>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -360,11 +550,11 @@ export default function DailyEntry() {
             ) : null}
           </Card>
 
-          {/* Nozzles */}
+          {/* Nozzles — paper sheet columns: OP, Cl, Sale, R/F, A/C Sale, Rate, Amount */}
           <Card>
             <CardHeader
-              title="Nozzle meters"
-              subtitle="Closing − opening = sale (F1). A/C sale = meter sale − R/F (F3). Amount = sale × rate."
+              title="Nozzle meters — paper sheet"
+              subtitle="OP Meter | Cl Meter | Sale | R/F | A/C Sale | Rate | Amount. Sale − R/F = A/C (F3). A/C × rate = amount (F4)."
               actions={<Pill litres={preview} />}
             />
             {form.nozzles.length === 0 ? (
@@ -376,16 +566,18 @@ export default function DailyEntry() {
               </div>
             ) : null}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[820px] border-collapse">
+              <table className="w-full min-w-[980px] border-collapse">
                 <thead>
                   <tr>
                     <th className="h-[33px] border-b border-[#E2E4E6] px-2 text-center text-[12px] font-normal text-[#4E525A] w-[44px]">Sl No</th>
                     <th className="h-[33px] border-b border-[#E2E4E6] px-4 text-left text-[12px] font-normal text-[#4E525A]">Nozzle</th>
-                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Op (Opening)</th>
-                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Cl (Closing)</th>
-                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Sale (L)</th>
-                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Rate (₹/L)</th>
-                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Amount (₹)</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">OP Meter</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Cl Meter</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Sale</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">R/F</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">A/C Sale</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Rate</th>
+                    <th className="h-[33px] border-b border-[#E2E4E6] px-3 text-right text-[12px] font-normal text-[#4E525A]">Amount</th>
                     <th className="h-[33px] border-b border-[#E2E4E6] px-4 text-left text-[12px] font-normal text-[#4E525A]">Fix</th>
                   </tr>
                 </thead>
@@ -431,6 +623,10 @@ export default function DailyEntry() {
                         <td className="px-3 py-1.5 text-right text-[12.5px] tabular-nums text-[#0D0F14] font-medium">
                           {computed ? inr(computed.sale, 3) : '0.000'}
                         </td>
+                        <td className="px-3 py-1.5 text-right text-[12px] text-[#9BA0A6]">—</td>
+                        <td className="px-3 py-1.5 text-right text-[12.5px] tabular-nums text-[#4E525A]">
+                          {computed ? inr(computed.sale, 3) : '0.000'}
+                        </td>
                         <td className="px-3 py-1.5 text-right text-[12.5px] tabular-nums text-[#4E525A]">
                           {Number(rate).toFixed(2)}
                         </td>
@@ -467,7 +663,19 @@ export default function DailyEntry() {
                       {isLastOfProduct ? (
                         <tr className={row.product === 'MS' ? 'bg-[#F5F7F9] border-b-2 border-[#0D0F14]/10' : 'bg-[#EEF3F8] border-b-2 border-[#0D0F14]/10'}>
                           <td colSpan={4} className="px-4 py-2 text-[12px] font-semibold text-[#0D0F14]">
-                            {row.product} TOTAL — {form.nozzles.filter((n) => n.product === row.product).length} nozzles · Sale − R/F = A/C
+                            {row.product} TOTAL — {form.nozzles.filter((n) => n.product === row.product).length} nozzles · Meter − R/F = A/C
+                          </td>
+                          <td className="px-3 py-2 text-right text-[12.5px] font-bold tabular-nums text-[#0D0F14]">
+                            {preview ? inr(preview.products[row.product].meterSale, 3) : '0.000'}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            <NumberInput
+                              value={form.rf[row.product]}
+                              disabled={closed}
+                              aria-label={`${row.product} R/F litres`}
+                              onChange={(value) => update({ rf: { ...form.rf, [row.product]: value } })}
+                              className={rowInput}
+                            />
                           </td>
                           <td className="px-3 py-2 text-right text-[12.5px] font-bold tabular-nums text-[#0D0F14]">
                             {preview ? inr(preview.products[row.product].acSale, 3) : '0.000'}
@@ -478,11 +686,7 @@ export default function DailyEntry() {
                           <td className="px-3 py-2 text-right text-[12.5px] font-bold tabular-nums text-[#0D0F14]">
                             {preview ? money(preview.products[row.product].amount) : '₹0'}
                           </td>
-                          <td className="px-4 py-2 text-[11px] text-[#4E525A]">
-                            {preview
-                              ? `Meter ${inr(preview.products[row.product].meterSale, 3)} − R/F ${inr(preview.products[row.product].rf, 3)}`
-                              : ''}
-                          </td>
+                          <td className="px-4 py-2 text-[11px] text-[#4E525A]">Meter − R/F = A/C</td>
                         </tr>
                       ) : null}
                       </React.Fragment>
@@ -491,6 +695,12 @@ export default function DailyEntry() {
                   <tr className="bg-[#0D0F14] text-white">
                     <td colSpan={4} className="px-4 py-2.5 text-[12px] font-bold tracking-wide">
                       GRAND TOTAL — A/C × RATE (F7)
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-[13px] font-bold tabular-nums">
+                      {preview ? inr(preview.products.MS.acSale + preview.products.HSD.acSale, 3) : '0.000'}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-[12px] text-white/70">
+                      {preview ? inr(preview.products.MS.rf + preview.products.HSD.rf, 3) : '0.000'}
                     </td>
                     <td className="px-3 py-2.5 text-right text-[13px] font-bold tabular-nums">
                       {preview ? inr(preview.products.MS.acSale + preview.products.HSD.acSale, 3) : '0.000'}
@@ -510,32 +720,33 @@ export default function DailyEntry() {
               <div className="grid grid-cols-1 gap-2 border-t border-[#E2E4E6] px-4 py-3 sm:grid-cols-3">
                 {['MS', 'HSD'].map((product) => (
                   <div key={product} className="rounded-[10px] border border-[#E2E4E6] bg-[#F5F7F9] px-3 py-2 text-[11.5px] leading-relaxed">
-                    <p className="font-semibold text-[#0D0F14]">{product} A/C sale box</p>
+                    <p className="font-semibold text-[#0D0F14]">{product} SALE box</p>
                     <p className="mt-0.5 text-[#4E525A]">
-                      {inr(preview.products[product].acSale, 3)} L × ₹{Number(preview.products[product].rate || 0).toFixed(2)} ={' '}
+                      A/C {inr(preview.products[product].acSale, 3)} L × ₹{Number(preview.products[product].rate || 0).toFixed(2)} ={' '}
                       <strong className="tabular-nums text-[#0D0F14]">{money(preview.products[product].amount)}</strong>
                     </p>
-                    <p className="text-[10.5px] text-[#9BA0A6]">Total A/C sale count × rate (F4)</p>
+                    <p className="text-[10.5px] text-[#9BA0A6]">Meter − R/F = A/C (F3) → A/C × rate (F4)</p>
                   </div>
                 ))}
                 <div className="rounded-[10px] bg-[#0D0F14] px-3 py-2 text-[11.5px] leading-relaxed text-white">
-                  <p className="font-semibold">Total sales (F7)</p>
-                  <p className="mt-0.5 tabular-nums">{money(preview.products.MS.amount)} + {money(preview.products.HSD.amount)}</p>
-                  <p className="text-[12px] font-bold tabular-nums">= {money(preview.fuel.totalAmount)}</p>
+                  <p className="font-semibold">R/F value (F5) · Total (F7)</p>
+                  <p className="mt-0.5 tabular-nums">{money(preview.products.MS.rfValue)} + {money(preview.products.HSD.rfValue)} = {money(preview.fuel.totalRfValue)}</p>
+                  <p className="text-[12px] font-bold tabular-nums">F7 = {money(preview.fuel.totalAmount)}</p>
                 </div>
               </div>
             ) : null}
             {preview ? (
               <div className="border-t border-[#E2E4E6] px-4 py-3">
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#4E525A]">Op Stock × Rate — stock value (F9)</p>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#4E525A]">Stocks — Op × Rate / Cl × Rate (F9) + Recv</p>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[620px] border-collapse text-[12px]">
+                  <table className="w-full min-w-[680px] border-collapse text-[12px]">
                     <thead>
                       <tr>
                         <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-left font-medium text-[#4E525A]">Product</th>
                         <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-right font-medium text-[#4E525A]">Op Stock (L)</th>
+                        <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-right font-medium text-[#4E525A]">Recv (L)</th>
                         <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-right font-medium text-[#4E525A]">Rate (₹/L)</th>
-                        <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-right font-medium text-[#4E525A]">Op Stock Amount</th>
+                        <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-right font-medium text-[#4E525A]">Op Amount</th>
                         <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-right font-medium text-[#4E525A]">Cl Stock (L)</th>
                         <th className="border-b border-[#E2E4E6] px-3 py-1.5 text-right font-medium text-[#4E525A]">Cl Amount</th>
                       </tr>
@@ -547,6 +758,7 @@ export default function DailyEntry() {
                             {product} ({product === 'MS' ? 'Petrol' : 'Diesel'})
                           </td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{inr(preview.products[product].openingStock, 3)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{inr(preview.products[product].receipts, 3)}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{Number(preview.products[product].rate || 0).toFixed(2)}</td>
                           <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{money(preview.products[product].openingValue)}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{inr(preview.products[product].closingStock, 3)}</td>
@@ -557,6 +769,9 @@ export default function DailyEntry() {
                         <td className="px-3 py-1.5">TOTAL</td>
                         <td className="px-3 py-1.5 text-right tabular-nums">
                           {inr(preview.products.MS.openingStock + preview.products.HSD.openingStock, 3)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">
+                          {inr(preview.products.MS.receipts + preview.products.HSD.receipts, 3)}
                         </td>
                         <td className="px-3 py-1.5 text-right">—</td>
                         <td className="px-3 py-1.5 text-right tabular-nums">
@@ -572,64 +787,16 @@ export default function DailyEntry() {
                     </tbody>
                   </table>
                 </div>
-                <p className="mt-1.5 text-[10.5px] text-[#9BA0A6]">MS and HSD stock values shown separately; variance (F10) is dip − closing stock in the Day totals box.</p>
+                <p className="mt-1.5 text-[10.5px] text-[#9BA0A6]">MS and HSD shown separately. Cl = Op + Recv − Meter sale + R/F (F8).</p>
               </div>
             ) : null}
           </Card>
 
-          {/* R/F */}
+          {/* M-Oil */}
           <Card>
             <CardHeader
-              title="R/F litres"
-              subtitle="Returned to the tank. A/C sale = meter sale − R/F (F3). R/F value = R/F litres × rate (F5)."
-            />
-            <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
-              {['MS', 'HSD'].map((product) => (
-                <div key={product} className="space-y-2">
-                  <label className="block">
-                    <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">
-                      {product} R/F (L)
-                    </span>
-                    <NumberInput
-                      value={form.rf[product]}
-                      onChange={(value) => update({ rf: { ...form.rf, [product]: value } })}
-                      disabled={closed}
-                      aria-label={`${product} R/F litres`}
-                      className="text-left"
-                    />
-                  </label>
-                  {preview ? (
-                    <div className="rounded-[10px] bg-[#F5F7F9] px-3 py-2 text-[11.5px] leading-relaxed text-[#4E525A]">
-                      <span className="font-semibold text-[#0D0F14]">
-                        {inr(preview.products[product].rf, 3)} L × ₹{Number(preview.products[product].rate || 0).toFixed(2)} ={' '}
-                        {money(preview.products[product].rfValue)}
-                      </span>
-                      <span className="block text-[10.5px] text-[#9BA0A6]">
-                        R/F value (F5) · A/C sale {litres(preview.products[product].acSale)}
-                      </span>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-            {preview ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E4E6] px-4 py-3">
-                <div className="text-[12px] text-[#4E525A]">
-                  <span className="font-semibold text-[#0D0F14]">Total R/F amount:</span>{' '}
-                  <span className="tabular-nums">{money(preview.products.MS.rfValue)} + {money(preview.products.HSD.rfValue)}</span>
-                </div>
-                <div className="rounded-[10px] bg-[#0D0F14] px-4 py-2 text-[13px] font-bold tabular-nums text-white">
-                  = {money(preview.fuel.totalRfValue)}
-                </div>
-              </div>
-            ) : null}
-          </Card>
-
-          {/* Lubricants & M-Oil */}
-          <Card>
-            <CardHeader
-              title="Lubricants & M-Oil"
-              subtitle="Names + pricing per row. Total below updates automatically (qty × price). Price is per litre or per pack."
+              title="M-Oil — names + prices"
+              subtitle="Type brand names manually. Total below updates automatically (qty × price)."
               actions={
                 <Button
                   size="sm"
@@ -645,32 +812,18 @@ export default function DailyEntry() {
             />
             <div className="space-y-2 p-4">
               {form.lube.length === 0 ? (
-                <p className="text-[12px] text-[#9BA0A6]">No lubricant sales today.</p>
+                <p className="text-[12px] text-[#9BA0A6]">No M-Oil sales today. Type name + qty + price.</p>
               ) : null}
               {form.lube.map((row, index) => (
                 <div key={index} className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_80px_100px_90px_32px]">
-                  <Select
-                    value={row.itemId ?? ''}
+                  <TextInput
+                    value={row.itemName}
                     disabled={closed}
-                    aria-label="Lubricant item"
-                    className="col-span-2 sm:col-span-1"
-                    onChange={(event) => {
-                      const item = data.masters.lubeItems.find((entry) => entry.id === event.target.value)
-                      updateLube(index, {
-                        itemId: item?.id ?? null,
-                        itemName: item?.name ?? '',
-                        price: item?.price ?? row.price,
-                      })
-                    }}
-                  >
-                    <option value="">Choose item…</option>
-                    {data.masters.lubeItems.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                    {row.itemId === null && row.itemName ? <option value="">{row.itemName}</option> : null}
-                  </Select>
+                    aria-label="M-Oil name"
+                    placeholder="M-Oil brand / name"
+                    onChange={(e) => updateLube(index, { itemId: null, itemName: e.target.value })}
+                    className={`${rowInput} col-span-2 sm:col-span-1`}
+                  />
                   <NumberInput
                     value={row.quantity}
                     disabled={closed}
@@ -683,7 +836,7 @@ export default function DailyEntry() {
                     value={row.price}
                     disabled={closed}
                     aria-label="Price"
-                    placeholder="Price"
+                    placeholder="Price ₹"
                     onChange={(value) => updateLube(index, { price: value })}
                     className={rowInput}
                   />
@@ -702,19 +855,31 @@ export default function DailyEntry() {
                 </div>
               ))}
               {preview ? (
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E4E6] bg-[#F5F7F9] px-3 py-2.5 lg:col-span-full -mx-4 -mb-4 mt-2 px-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E4E6] bg-[#F5F7F9] px-3 py-2.5">
                   <span className="text-[12px] text-[#4E525A]">
                     {form.lube.length} item(s) · Qty {inr(form.lube.reduce((s, r) => s + (Number(r.quantity) || 0), 0), 3)}
                   </span>
                   <span className="rounded-[10px] bg-[#0D0F14] px-4 py-1.5 text-[13px] font-bold tabular-nums text-white">
-                    Total M-Oil / Lubricant (F6): {money(preview.lube.total)}
+                    Total M-Oil (F6): {money(preview.lube.total)}
                   </span>
                 </div>
               ) : null}
             </div>
           </Card>
 
-          {/* Online + POS */}
+          {/* Expenses (names + prices) */}
+          <ExpenseCard
+            form={form}
+            data={data}
+            closed={closed}
+            updateExpense={updateExpense}
+            removeExpense={(index) => update({ expenses: form.expenses.filter((_, i) => i !== index) })}
+            addExpense={(categoryId) =>
+              update({ expenses: [...form.expenses, { categoryId, type: 'running', details: '', amount: 0 }] })
+            }
+          />
+
+          {/* Online + POS + Bank + Cash */}
           <Card>
             <CardHeader
               title="Online, POS and bank"
@@ -759,7 +924,6 @@ export default function DailyEntry() {
                   </button>
                 </div>
               ))}
-
               <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-3">
                 <label className="block">
                   <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#4E525A]">POS</span>
@@ -784,34 +948,53 @@ export default function DailyEntry() {
               </div>
             </div>
           </Card>
+
+          {/* Credit parties — collection */}
+          <CreditCard
+            form={form}
+            data={data}
+            closed={closed}
+            updateCredit={updateCredit}
+            removeCredit={(index) => update({ credits: form.credits.filter((_, i) => i !== index) })}
+            addCredit={() =>
+              update({
+                credits: [
+                  ...form.credits,
+                  { partyId: data.masters?.parties?.[0]?.id ?? '', type: 'payment', mode: 'cash', amount: 0, note: '' },
+                ],
+              })
+            }
+          />
         </div>
 
-        {/* Summary column */}
+        {/* Summary column — one column as per rule book */}
         <div className="min-w-0 space-y-4 xl:sticky xl:top-[83px] xl:self-start">
           <Card>
-            <CardHeader title="Day totals" subtitle="Recalculated live; the server stores the official figures." />
-            <div className="px-4 pb-3 pt-1">
+            <CardHeader title="Day totals — one column" subtitle="Recalculated live; the server stores the official figures." />
+            <div className="px-4 pb-1 pt-1">
+              <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#9BA0A6]">MS Sale / HSD Sale (A/C litres)</p>
+              <SummaryRow label="MS Sale (A/C)" value={preview?.products.MS.acSale} />
+              <SummaryRow label="HSD Sale (A/C)" value={preview?.products.HSD.acSale} />
+              <p className="mt-2 mb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#9BA0A6]">Amounts</p>
               <SummaryRow label="MS amount (F4)" value={preview?.products.MS.amount} />
               <SummaryRow label="HSD amount (F4)" value={preview?.products.HSD.amount} />
-              <SummaryRow label="Total fuel (F7)" value={preview?.fuel.totalAmount} strong />
+              <SummaryRow label="Total amount (F7)" value={preview?.fuel.totalAmount} strong />
               <SummaryRow label="R/F value (F5)" value={preview?.fuel.totalRfValue} />
-              <SummaryRow label="Lubricants (F6)" value={preview?.lube.total} />
-              <SummaryRow label="Expenses" value={preview?.expenses.total} />
+              <p className="mt-2 mb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#9BA0A6]">Deductions & collections</p>
+              <SummaryRow label="EXP — Expenses" value={preview?.expenses.total} />
               <SummaryRow label="Credit given" value={preview?.cash.creditGiven} />
-              <SummaryRow label="Credit received" value={preview?.cash.creditReceived} />
-              <SummaryRow label="Online" value={preview?.cash.online} />
-              <SummaryRow label="POS" value={preview?.cash.pos} />
-              <SummaryRow label="Net cash movement (F11)" value={preview?.cash.net} strong tone={preview?.cash.net < 0 ? 'bad' : undefined} />
-              <SummaryRow label="Previous balance (F14)" value={preview?.cash.previousBalance} />
+              <SummaryRow label="Online collected" value={preview?.cash.online} />
+              <SummaryRow label="POS machine" value={preview?.cash.pos} />
+              <SummaryRow label="Credit received (paid)" value={preview?.cash.creditReceived} />
+              <SummaryRow label="Net movement (F11)" value={preview?.cash.net} strong tone={preview?.cash.net < 0 ? 'bad' : undefined} />
+              <p className="mt-2 mb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#9BA0A6]">Cash box</p>
+              <SummaryRow label="P. balanced (previous)" value={preview?.cash.previousBalance} />
               <SummaryRow label="Bank deposit" value={preview?.cash.bankDeposit} />
+              <SummaryRow label="M-Oil (F6)" value={preview?.lube.total} />
               <div className="my-2 h-px bg-[#E2E4E6]" />
               <SummaryRow label="Total cash (F12)" value={preview?.cash.total} strong tone={preview?.cash.total < 0 ? 'bad' : undefined} />
-              <SummaryRow
-                label="Cash difference (F13)"
-                value={preview?.cash.difference}
-                tone={Math.abs(preview?.cash.difference ?? 0) > 0.5 ? 'bad' : 'good'}
-              />
-              <SummaryRow label="R/F + cash (F16)" value={preview?.rfPlusCash} />
+              <SummaryRow label="Cash in hand − book (F13)" value={preview?.cash.difference} tone={Math.abs(preview?.cash.difference ?? 0) > 0.5 ? 'bad' : 'good'} />
+              <SummaryRow label="R/F + Total cash (F16)" value={preview?.rfPlusCash} strong />
               <SummaryRow label="Daily profit (F17)" value={preview?.profit.net} />
             </div>
             <div className="border-t border-[#E2E4E6] px-4 py-3 text-[11.5px] leading-relaxed text-[#4E525A]">
